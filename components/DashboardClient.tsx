@@ -54,6 +54,10 @@ export default function DashboardClient() {
   // Re-displays the competitor selection table after the dashboard has loaded
   // (triggered by the top header "+ Add Competitor" flow)
   const [isPickingMore, setIsPickingMore] = useState(false)
+  // Competitors temporarily excluded from the dashboard analysis view via the
+  // checkbox dropdown in the top header. Unchecking hides them; re-checking
+  // restores them (the underlying fetched dashboard data is never mutated).
+  const [inactiveCompetitorIds, setInactiveCompetitorIds] = useState<string[]>([])
 
   const isHydratedRef = useRef(false)
   const domainRef = useRef('')
@@ -134,6 +138,7 @@ export default function DashboardClient() {
       setAds([])
       setDashboard(null)
       setAdsError('')
+      setInactiveCompetitorIds([])
       setHasFetchedAds(false)
       setHasSearched(true)
     } catch {
@@ -143,6 +148,7 @@ export default function DashboardClient() {
       setAds([])
       setDashboard(null)
       setAdsError('')
+      setInactiveCompetitorIds([])
       setHasFetchedAds(false)
       setHasSearched(true)
     } finally {
@@ -175,6 +181,8 @@ export default function DashboardClient() {
       if (result.success && result.dashboard) {
         setDashboard(result.dashboard)
         setAds(result.dashboard.ads)
+        // Fresh dashboard covers the newly selected set — every competitor active again
+        setInactiveCompetitorIds([])
         // Dashboard is now visible — collapse the competitor picker again
         setIsPickingMore(false)
       } else {
@@ -216,38 +224,12 @@ export default function DashboardClient() {
     setIsModalOpen(false)
   }
 
-  // Removes a competitor from the current analysis (triggered by the top header
-  // competitor dropdown) and re-renders the dashboard visuals accordingly.
-  const handleRemoveCompetitor = (id: string) => {
-    const target = competitors.find((c) => c.id === id)
-    setCompetitors((prev) => prev.filter((c) => c.id !== id))
-    setSelectedIds((prev) => prev.filter((x) => x !== id))
-    setAds((prev) => prev.filter((ad) => ad.competitorId !== id))
-    if (!target) return
-    setDashboard((prev) => {
-      if (!prev) return prev
-      const scorecards = prev.scorecards.filter((s) => s.competitorId !== id)
-      const heatmap = prev.heatmap.filter((row) => row.competitorName !== target.name)
-      const remainingAds = prev.ads.filter((ad) => ad.competitorId !== id)
-      const total = remainingAds.length
-      const activeCount = remainingAds.filter((ad) => ad.active ?? true).length
-      const imageCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'image').length
-      const videoCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'video').length
-      return {
-        ...prev,
-        scorecards,
-        heatmap,
-        ads: remainingAds,
-        kpis: {
-          ...prev.kpis,
-          totalAds: total,
-          activePct: total > 0 ? Math.round((activeCount / total) * 100) : 0,
-          imageCreatives,
-          videoCreatives,
-          competitorCount: scorecards.length,
-        },
-      }
-    })
+  // Checkbox toggle from the top header competitor dropdown: unchecking removes
+  // the competitor from the dashboard analysis view; re-checking restores them.
+  const handleToggleCompetitorActive = (id: string) => {
+    setInactiveCompetitorIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }
 
   const handleFindInGallery = (query: string) => {
@@ -270,15 +252,53 @@ export default function DashboardClient() {
   // adding/selecting extra competitors after the dashboard has loaded
   const showTable = hasSearched && (!dashboardVisible || isPickingMore)
 
+  // Competitors currently included in the analysis view (checkbox checked)
+  const activeCompetitorIds = competitors
+    .filter((c) => !inactiveCompetitorIds.includes(c.id))
+    .map((c) => c.id)
+
+  // Derived dashboard view that excludes unchecked competitors without mutating
+  // the fetched dashboard, so re-checking restores the full data instantly.
+  let visibleDashboard: AdsDashboardData | null = dashboard
+  if (dashboard && inactiveCompetitorIds.length > 0) {
+    const inactiveSet = new Set(inactiveCompetitorIds)
+    const inactiveNames = new Set(
+      competitors.filter((c) => inactiveSet.has(c.id)).map((c) => c.name)
+    )
+    const scorecards = dashboard.scorecards.filter((s) => !inactiveSet.has(s.competitorId))
+    const heatmap = dashboard.heatmap.filter((row) => !inactiveNames.has(row.competitorName))
+    const remainingAds = dashboard.ads.filter((ad) => !inactiveSet.has(ad.competitorId))
+    const total = remainingAds.length
+    const activeCount = remainingAds.filter((ad) => ad.active ?? true).length
+    const imageCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'image').length
+    const videoCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'video').length
+    visibleDashboard = {
+      ...dashboard,
+      scorecards,
+      heatmap,
+      ads: remainingAds,
+      kpis: {
+        ...dashboard.kpis,
+        totalAds: total,
+        activePct: total > 0 ? Math.round((activeCount / total) * 100) : 0,
+        imageCreatives,
+        videoCreatives,
+        competitorCount: scorecards.length,
+      },
+    }
+  }
+  const visibleAds = ads.filter((ad) => !inactiveCompetitorIds.includes(ad.competitorId))
+
   return (
     <div className="min-h-screen">
       <TopNav
         companyName={cleanDomainInput(domain)}
         competitors={competitors}
+        activeCompetitorIds={activeCompetitorIds}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onAddCompetitor={() => setIsModalOpen(true)}
-        onRemoveCompetitor={handleRemoveCompetitor}
+        onToggleCompetitor={handleToggleCompetitorActive}
         showTabs={dashboardVisible}
       />
 
@@ -300,20 +320,24 @@ export default function DashboardClient() {
               Enter a company domain to discover its top competitors.
             </p>
             <form onSubmit={handleListCompetitors} className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="e.g. hubspot.com"
-                className="ds-input flex-1"
-                aria-label="Domain to analyze"
-                disabled={isFetchingCompetitors}
-              />
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-400" />
+                <input
+                  type="text"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  placeholder="e.g. example.com"
+                  className="ds-input pl-10"
+                  style={{ paddingLeft: '2.5rem' }}
+                  aria-label="Domain to analyze"
+                  disabled={isFetchingCompetitors}
+                />
+              </div>
               <button type="submit" className="ds-btn-primary" disabled={isFetchingCompetitors}>
                 {isFetchingCompetitors ? (
                   <>
                     <Spinner />
-                    Finding Competitors...
+                    Searching...
                   </>
                 ) : (
                   <>
@@ -323,20 +347,20 @@ export default function DashboardClient() {
                 )}
               </button>
             </form>
-            {domainError && <p className="mt-2 text-xs text-errords">{domainError}</p>}
-            {apiError && <p className="mt-2 text-xs text-errords">{apiError}</p>}
+            {domainError && <p className="mt-3 text-sm text-errords">{domainError}</p>}
+            {apiError && <p className="mt-3 text-sm text-errords">{apiError}</p>}
           </section>
         )}
 
-        {/* Competitor selection table — hidden once the dashboard loads, re-shown via Add Competitor */}
-        {showTable && competitors.length > 0 && (
-          <section className="ds-card mt-6 overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-grey-100 p-5">
+        {/* Competitor selection table — before dashboard load, or when adding more */}
+        {showTable && (
+          <section className="ds-card mt-6 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Users className="h-5 w-5 text-grey-600" />
                 <h2 className="text-lg font-semibold text-grey-900">Competitors</h2>
-                <span className="text-xs text-grey-500">
-                  {selectedIds.length} of {competitors.length} selected
+                <span className="inline-flex items-center rounded-full bg-brand-surface px-2 py-0.5 text-xs font-semibold text-brand">
+                  {competitors.length}
                 </span>
               </div>
               <button
@@ -352,39 +376,47 @@ export default function DashboardClient() {
                   </>
                 ) : (
                   <>
-                    <Megaphone className="h-5 w-5" />
-                    Get Ads for Selected
+                    <Megaphone className="h-4 w-4" />
+                    Get Ads for Selected ({selectedIds.length})
                   </>
                 )}
               </button>
             </div>
-            <CompetitorsTable
-              competitors={competitors}
-              selectedIds={selectedIds}
-              onToggle={handleToggle}
-              onToggleAll={handleToggleAll}
-            />
+            {competitors.length === 0 ? (
+              <p className="mt-4 text-sm text-grey-600">
+                No competitors yet. Analyze a domain or add a competitor manually.
+              </p>
+            ) : (
+              <div className="mt-4">
+                <CompetitorsTable
+                  competitors={competitors}
+                  selectedIds={selectedIds}
+                  onToggle={handleToggle}
+                  onToggleAll={handleToggleAll}
+                />
+              </div>
+            )}
+            {adsError && <p className="mt-3 text-sm text-errords">{adsError}</p>}
           </section>
         )}
 
-        {/* Ads workflow error state */}
-        {adsError && (
-          <div className="ds-card mt-6 p-6 text-center">
-            <p className="text-sm font-medium text-errords">{adsError}</p>
-            <p className="mt-1 text-xs text-grey-500">
-              Select your competitors and click &quot;Get Ads for Selected&quot; to try again.
-            </p>
+        {/* Loading state while the ads workflow runs */}
+        {isFetchingAds && !dashboardVisible && (
+          <div className="ds-card mt-6 flex flex-col items-center justify-center p-12 text-center">
+            <Spinner size="md" className="text-brand" />
+            <p className="mt-3 text-sm font-medium text-grey-700">Fetching ads for selected competitors...</p>
+            <p className="mt-1 text-xs text-grey-500">This can take a moment while we analyze creatives.</p>
           </div>
         )}
 
         {/* Dashboard sections — visible only after a successful ads fetch */}
-        {dashboardVisible && dashboard && (
+        {dashboardVisible && visibleDashboard && (
           <>
-            {activeTab === 'insights' && <AdsDashboard data={dashboard} />}
+            {activeTab === 'insights' && <AdsDashboard data={visibleDashboard} />}
             {activeTab === 'gallery' && (
               <AdGallery
-                ads={ads}
-                data={dashboard}
+                ads={visibleAds}
+                data={visibleDashboard}
                 search={gallerySearch}
                 onSearchChange={setGallerySearch}
                 format={galleryFormat}
@@ -393,14 +425,18 @@ export default function DashboardClient() {
             )}
             {activeTab === 'competitors' && (
               <CompetitorIntel
-                data={dashboard}
-                ads={ads}
+                data={visibleDashboard}
+                ads={visibleAds}
                 competitors={competitors}
                 onFindInGallery={handleFindInGallery}
               />
             )}
             {activeTab === 'creative' && (
-              <CreativeAnalysis data={dashboard} ads={ads} onFilterGallery={handleFilterGallery} />
+              <CreativeAnalysis
+                data={visibleDashboard}
+                ads={visibleAds}
+                onFilterGallery={handleFilterGallery}
+              />
             )}
           </>
         )}

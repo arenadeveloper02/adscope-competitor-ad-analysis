@@ -1,24 +1,23 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T15:52:14.315Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T16:13:54.895Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. Edit: added a competitor management dropdown (with per-competitor Remove action) to the top header next to + Add Competitor (components/TopNav.tsx); wired remove logic in components/DashboardClient.tsx so removing a competitor updates state, filters ads, and recomputes dashboard KPIs/scorecards/heatmap; removed Sync/Sheet buttons and their props from components/Sidebar.tsx; kept the Ad Gallery search input left-padding fix in components/AdGallery.tsx; Active Ads KPI already shows the absolute count in AdsDashboard.tsx (unchanged); no Back/Clear/Search-Other-Company buttons exist in the rendered UI. prisma/schema.prisma is echoed unchanged (additive-safe).
+Competitor ad analysis dashboard: discover competitors for any domain, fetch their ads, and analyze creatives, keywords, and strategy across platforms.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 38
 
 ## Features
 
-- Competitor discovery by domain via Arena workflow
+- Domain-based competitor discovery
 - Competitor selection table with Get Ads for Selected
-- Ads dashboard with KPIs, scorecards, heatmap, themes, and signals
-- Ad Gallery with competitor/format/search filters
-- Competitor Intel and Creative Analysis tabs
-- Top-header competitor dropdown with remove action
-- Add Competitor modal that re-opens the selection table
-- Server-side session snapshots keyed by Arena emailId
+- Post-load top header competitor checkbox dropdown to include/exclude competitors
+- Insights, Ad Gallery, Competitors, and Creative Analysis tabs shown only after data loads
+- Add Competitor flow that re-opens the selection table
+- Absolute Active Ads KPI and fixed gallery search padding
+- Server-side session snapshot persistence keyed by Arena emailId
 
 ## Tech Stack
 
@@ -141,54 +140,50 @@ AdScope — Competitor Ad Analysis. Edit: added a competitor management dropdown
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T15:52:14.315Z
+- **Updated at:** 2026-08-24T16:13:54.895Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-Top Header & Navigation Restructuring:
+Competitor Management Dropdown UI (Checkboxes):
 
-Restructure the top header to only include the logo/title block on the left and the "+ Add Competitor" action button on the right.
+Update the "Active Competitors" dropdown menu in the top header. Replace the 'X' (remove) icon next to each competitor with a standard Checkbox.
+
+Behavior: Unchecking a checkbox should immediately remove that competitor from the current dashboard analysis view and update the state. Checking a previously unchecked competitor (if retained in the list) should re-add them.
+
+Conditional Visibility of Competitor Dropdown:
+
+Hide the "Active Competitors" dropdown list (and its parent trigger button/icon in the top header) on the initial load.
+
+This dropdown must only become visible after the user completes the initial setup phase (i.e., after they select competitors from the main table and click "Get Ads for Selected", and the dashboard data successfully loads).
+
+Top Header & Navigation Restructuring (Retained from previous):
+
+Restructure the top header to only include the logo/title block on the left and the "+ Add Competitor" action button (and the aforementioned dropdown, once visible) on the right.
 
 Completely remove the "Sync" and "Sheet" buttons from the application.
 
 Move the main navigation tabs (Insights, Ad Gallery, Competitors, Creative Analysis) out of the top header and place them in a secondary navigation bar positioned directly below the top header.
 
-Competitor Management Dropdown (Top Header):
+Conditional Visibility of Navigation & Dashboard (Retained):
 
-In the top header, adjacent to or integrated with the "+ Add Competitor" section, add a dropdown menu that displays the current list of active/analyzed competitors.
+Hide the main navigation tabs and all corresponding dashboard sections on initial load. They must only become visible after the user successfully fetches data by clicking "Get Ads for Selected".
 
-Add a "Remove" action (e.g., an 'X' or trash icon) next to each competitor in this dropdown, allowing the user to easily delete a competitor from the current analysis view.
-
-Ensure that adding a new competitor (via "+ Add Competitor") or removing one from this dropdown updates the application state and re-renders the dashboard visuals accordingly.
-
-Conditional Visibility of Navigation & Dashboard:
-
-Hide the main navigation tabs (Insights, Ad Gallery, Competitors, Creative Analysis) and all corresponding dashboard sections on initial load.
-
-These tabs and sections must only become visible after the user successfully fetches data by clicking the "Get Ads for Selected" button.
-
-Toggle Initial Input & Competitor Table Views:
+Toggle Initial Input & Competitor Table Views (Retained):
 
 Once the dashboard data loads and becomes visible, hide/unmount the initial "Analyze a Domain" input block and the "Competitors" selection table.
 
-Add Competitor Flow: When the user clicks the top header's "+ Add Competitor" button, add the new competitor to the state and re-display the Competitors selection table so the user can select them. The "Get Ads for Selected" button must also be visible during this state to allow the user to trigger a fresh analysis.
+Add Competitor Flow: When the user clicks the top header's "+ Add Competitor" button, add the new competitor to the state and re-display the Competitors selection table so the user can select them. The "Get Ads for Selected" button must also be visible during this state.
 
-Search Bar CSS Fix (Ad Gallery):
+Search Bar CSS Fix & Cleanup (Retained):
 
-Fix the CSS layout bug in the Ad Gallery search bar where the magnifying glass icon overlaps with the placeholder text ("Search headlines, CTAs, keywords...").
+Fix the CSS layout bug in the Ad Gallery search bar where the magnifying glass icon overlaps with the placeholder text (apply pl-10 or similar padding).
 
-Apply proper left padding (e.g., pl-10) to the input element and adjust the absolute positioning of the icon to maintain a clean gap.
+Completely remove any "Back" navigation buttons, "Clear" buttons, and "Search Other Company" reset buttons from the UI.
 
-Remove "Back" and "Clear" Actions:
+Active Ads KPI Formatting (Retained):
 
-Completely remove any "Back" navigation buttons from all dashboard views.
-
-Completely remove the "Clear" and "Search Other Company" reset buttons from the UI.
-
-Active Ads KPI Formatting:
-
-Update the metric displayed on the "Active Ads" KPI summary card. It must display the absolute number of active ads (e.g., 32) instead of a percentage value (e.g., 100%).
+Update the metric displayed on the "Active Ads" KPI summary card to display the absolute number of active ads (e.g., 32) instead of a percentage value.
 
 Constraints:
 
