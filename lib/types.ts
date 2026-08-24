@@ -20,3 +20,9 @@ export interface ActionResult {
   success: boolean
   error?: string
 }
+
+export interface CompetitorSearchResult {
+  success: boolean
+  competitors?: Competitor[]
+  error?: string
+}

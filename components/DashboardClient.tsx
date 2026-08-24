@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Plus, Search, Megaphone, Users } from 'lucide-react'
 import type { Competitor, CompetitorAd } from '@/lib/types'
-import { fetchCompetitors, fetchCompetitorAds, fetchSingleCompetitor } from '@/lib/mock-api'
-import { logAnalysis } from '@/lib/actions'
+import { fetchCompetitorAds, fetchSingleCompetitor } from '@/lib/mock-api'
+import { logAnalysis, searchCompetitors } from '@/lib/actions'
 import { useArenaEmailId } from '@/components/arena-email-provider'
 import AddCompetitorModal from '@/components/AddCompetitorModal'
 import CompetitorsTable from '@/components/CompetitorsTable'
@@ -16,6 +16,7 @@ export default function DashboardClient() {
 
   const [domain, setDomain] = useState('')
   const [domainError, setDomainError] = useState('')
+  const [apiError, setApiError] = useState('')
   const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [ads, setAds] = useState<CompetitorAd[]>([])
@@ -35,11 +36,24 @@ export default function DashboardClient() {
       return
     }
     setDomainError('')
+    setApiError('')
     setIsFetchingCompetitors(true)
     void logAnalysis(trimmed, emailId)
     try {
-      const results = await fetchCompetitors(trimmed)
-      setCompetitors(results)
+      const result = await searchCompetitors(trimmed)
+      if (result.success && result.competitors) {
+        setCompetitors(result.competitors)
+      } else {
+        setCompetitors([])
+        setApiError(result.error ?? 'Something went wrong while fetching competitors. Please try again.')
+      }
+      setSelectedIds([])
+      setAds([])
+      setHasFetchedAds(false)
+      setHasSearched(true)
+    } catch {
+      setCompetitors([])
+      setApiError('Something went wrong while fetching competitors. Please try again.')
       setSelectedIds([])
       setAds([])
       setHasFetchedAds(false)
@@ -81,6 +95,7 @@ export default function DashboardClient() {
       const competitor = await fetchSingleCompetitor(newDomain)
       if (!competitor) return
       setCompetitors((prev) => [...prev, competitor])
+      setApiError('')
       setHasSearched(true)
       const newAds = await fetchCompetitorAds([competitor.id], [competitor])
       setAds((prev) => [...prev, ...newAds])
@@ -170,14 +185,23 @@ export default function DashboardClient() {
           </div>
         ) : competitors.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <p className="text-sm font-medium text-grey-700">
-              {hasSearched ? 'No competitors found' : 'No competitors yet'}
-            </p>
-            <p className="mt-1 text-xs text-grey-500">
-              {hasSearched
-                ? 'Try a different domain or add a competitor manually.'
-                : 'Enter a domain above and click "List Competitors" to get started.'}
-            </p>
+            {apiError ? (
+              <>
+                <p className="text-sm font-medium text-errords">Could not fetch competitors</p>
+                <p className="mt-1 text-xs text-grey-500">{apiError}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-grey-700">
+                  {hasSearched ? 'No competitors found' : 'No competitors yet'}
+                </p>
+                <p className="mt-1 text-xs text-grey-500">
+                  {hasSearched
+                    ? 'Try a different domain or add a competitor manually.'
+                    : 'Enter a domain above and click "List Competitors" to get started.'}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>

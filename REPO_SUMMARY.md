@@ -1,23 +1,23 @@
-# Repository Summary: AdScope — Competitor Ad Analysis
+# Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T07:33:40.648Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T08:06:46.954Z.
 
 ## Overview
 
-A modern single-page dashboard for competitor ad analysis: enter a domain, list competitors with match scores, select them, and fetch their ads (mock APIs with realistic loading states), styled with the Arena Design System.
+AdScope — Competitor Ad Analysis. Edit: replaced the mock competitor search with a real server-side POST to the Arena workflow API (new searchCompetitors server action in lib/actions.ts), added CompetitorSearchResult type in lib/types.ts, and updated components/DashboardClient.tsx handleListCompetitors to call the API with loading state and friendly error display. Manual competitor add, checkbox selection, and mock ad fetching are preserved untouched. prisma/schema.prisma echoed unchanged.
 
 **Repository:** `adscope-competitor-ad-analysis`  
-**File count:** 31
+**File count:** 30
 
 ## Features
 
-- Add Extra Competitor CTA with modal that auto-fetches ads for the new competitor and appends results
-- Domain input with 'List Competitors' CTA and 1.5s mock API loading spinner
-- Selectable competitors table (single, multiple, select-all) with match score badges
-- 'Get Ads for Selected' button (disabled with no selection) rendering ads as a responsive card grid
-- Careful loading-state management (isFetchingCompetitors / isFetchingAds) to prevent double clicks
-- Graceful empty states for no competitors and no ads
-- Arena email gate (middleware + access-denied page) and analysis logging to Postgres via Prisma
+- Real API competitor search via Arena workflow endpoint (server action, dynamic company_domain_url payload)
+- Robust response parsing with match-score fallback when the API omits scores
+- Loading indicators and friendly error messages for failed or empty API results
+- Manual 'Add Extra Competitor' modal flow preserved
+- Checkbox single/multi/select-all competitor selection preserved
+- 'Get Ads for Selected' mock ad analysis and ad cards preserved
+- Analysis session logging to Neon Postgres via Prisma
 
 ## Tech Stack
 
@@ -29,7 +29,6 @@ A modern single-page dashboard for competitor ad analysis: enter a domain, list 
 
 ## Infrastructure
 
-- **Neon project ID:** `morning-sound-27712377` — managed by Sim Development; do not delete or replace
 - **DATABASE_URL:** set on Vercel when Neon is connected — do not commit real credentials
 
 ## Routes & Pages
@@ -75,7 +74,6 @@ A modern single-page dashboard for competitor ad analysis: enter a domain, list 
 ### Config
 
 - `.env.example`
-- `.gitignore`
 - `middleware.ts`
 - `next-env.d.ts`
 - `next.config.ts`
@@ -92,7 +90,6 @@ A modern single-page dashboard for competitor ad analysis: enter a domain, list 
 ## Complete File Index
 
 - `.env.example`
-- `.gitignore`
 - `README.md`
 - `REPO_SUMMARY.md`
 - `app/access-denied/page.tsx`
@@ -125,49 +122,47 @@ A modern single-page dashboard for competitor ad analysis: enter a domain, list 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T07:33:40.648Z
-- **Request:** System Role: You are an expert frontend developer with strong UI/UX design skills. Your task is to build a modern, responsive web application for competitor ad analysis. Please use clean code, state management, and modern styling (e.g., Tailwind CSS).
+- **Updated at:** 2026-08-24T08:06:46.954Z
+- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-Application Requirements:
+Changes to implement:
 
-1. Core Layout & Navigation
+API Integration for Competitor Search: Replace the mock fetchCompetitors function with an actual HTTP POST request to the following API endpoint when the user submits a domain URL:
 
-Create a clean, single-page dashboard layout.
+Endpoint: [https://agent.thearena.ai/api/workflows/a5a9fda5-1a2d-4c60-b818-82897efae436/execute](https://agent.thearena.ai/api/workflows/a5a9fda5-1a2d-4c60-b818-82897efae436/execute)
 
-At the very top of the page, add a primary CTA button: "Add Extra Competitor".
+Method: POST
 
-Behavior: Clicking this should open a small modal or inline input field where the user can manually enter a competitor's domain. Upon submission, it should automatically trigger the analysis/ad-fetching API for that specific new competitor and append the results to the existing data.
+Headers:
 
-2. Domain Input Section
+X-API-Key: sk-sim-vTPTbbRj94Pf9YjOyjNthKyXig5NLD1F
 
-Create an input form with a text field labeled "Enter Domain URL".
+Content-Type: application/json
 
-Next to or below the input, add a CTA button: "List Competitors".
+Cookie: AWSALB=0pW9//ob33hd6Jof2VVkLLwdUtYN1S9n26EosfsQO/Oamm/3cvT7oYM/lNmjMQEW8AMMSrni2GEDsGNsw+AlBU7SogaKDwLqJFp1XL1qR2/rgI00jyQsTU2ft499; AWSALBCORS=0pW9//ob33hd6Jof2VVkLLwdUtYN1S9n26EosfsQO/Oamm/3cvT7oYM/lNmjMQEW8AMMSrni2GEDsGNsw+AlBU7SogaKDwLqJFp1XL1qR2/rgI00jyQsTU2ft499
 
-Behavior: Clicking this button triggers a mock API call (fetchCompetitors(domain)). Show a loading spinner during the request.
+Dynamic Request Body: Pass the user-entered domain URL dynamically into the payload body in the format: {"company_domain_url": "<domain_input>"}.
 
-3. Competitors Table Section
+Response Parsing & Table Rendering: Parse the array/data returned by the API response and map it to populate the Competitors Table with fields for Selection Checkbox, Competitor Name, Competitor Domain, and Match Score/Relevance (fall back to a calculated/mock score if omitted by the API).
 
-Once the competitors are fetched, display them in a well-structured data table.
+State & Error Handling: Ensure proper loading state indicators (isFetchingCompetitors) while the API call is in progress, along with error handling to display friendly messages if the API request fails or returns an empty result set.
 
-Columns needed: Checkbox (for selection), Competitor Name, Competitor Domain, and Match Score/Relevance (mock data).
+Preserve Surrounding Workflows: Maintain the full capability for:
 
-Behavior: The user must be able to select one, multiple, or all competitors using the checkboxes.
+"Add Extra Competitor" CTA/Modal: Allowing manual competitor additions and appending them to the table.
 
-4. Ad Analysis Section
+Competitor Selection: Checkbox state management allowing single, multiple, or select-all options.
 
-At the bottom of the competitors table, add a CTA button: "Get Ads for Selected".
+Ad Analysis Trigger: The "Get Ads for Selected" button logic triggering the mock fetchCompetitorAds call and rendering ad cards below.
 
-Behavior: This button should be disabled if no competitors are selected in the table. When clicked, it triggers a second mock API call (fetchCompetitorAds(selectedCompetitorIds)). Show a loading state while fetching.
+Constraints:
 
-Results Display: Once the response returns, render the ads data clearly below the button. Format this as a grid of cards or an accordion list, showing the Competitor Name, Ad Headline, Ad Copy, and Ad Platform.
+Only touch the files/functions directly related to the points above.
 
-5. Technical & State Management Rules
+Do not change variable names, code style, or structure outside the scope of these changes.
 
-Please mock all API calls using setTimeout (e.g., 1.5 seconds delay) and return dummy JSON data so the UI can be tested immediately.
+Do not add extra features, optimizations, or refactors that weren't requested.
 
-Manage the loading states (isFetchingCompetitors, isFetchingAds) carefully to prevent double-clicks.
+If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
 
-Ensure the application handles empty states gracefully (e.g., "No competitors found" or "No ads available").
-
-Output format: Please provide the complete, runnable code for this application.
+After implementing, list exactly which files and lines were changed, and why.

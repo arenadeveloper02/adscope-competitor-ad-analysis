@@ -10,8 +10,7 @@ datasource db {
 
 model AnalysisSession {
   id        String   @id @default(cuid())
-  emailId   String
   domain    String
+  emailId   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
