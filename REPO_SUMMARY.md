@@ -1,21 +1,23 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T10:59:13.957Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T11:10:44.722Z.
 
 ## Overview
 
-Competitor ad intelligence dashboard: discover competitors for any domain, analyze their ads via AI workflows, and explore scorecards, heatmaps, and creative insights.
+AdScope — discover competitors for any domain and analyze their ads across platforms with an ad intelligence dashboard.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 33
 
 ## Features
 
-- Fixed left navigation sidebar with Sync and Sheet export actions
-- Self-company-first scorecards and metric grids
-- Add Extra Competitor modal with automatic AI workflow analysis
-- Correct per-competitor domain column in the competitors table
-- Dynamic 7-day / 30-day / monthly Ad Activity Pulse heatmap
+- Competitor discovery for any domain via Arena workflow
+- Selectable competitors table with match scores
+- Ads workflow analysis producing a full ad intelligence dashboard
+- KPI cards, scorecards, heatmap, keyword battlefield, CTA arsenal, messaging themes, strategic signals
+- Add extra competitor with automatic analysis
+- Sheet export of dashboard data
+- Arena email gating via middleware and cookie
 
 ## Tech Stack
 
@@ -36,6 +38,7 @@ Competitor ad intelligence dashboard: discover competitors for any domain, analy
 
 ## Database Models
 
+- `AppSetting`
 - `AnalysisSession`
 - `SheetExport`
 
@@ -127,73 +130,29 @@ Competitor ad intelligence dashboard: discover competitors for any domain, analy
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T10:59:13.957Z
-- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+- **Updated at:** 2026-08-24T11:10:44.722Z
+- **Request:** Fix ONLY the failing Vercel build by decoupling Prisma schema migration from the build step. The current build script runs `prisma generate && prisma db push && next build`. The `prisma db push` step keeps failing during Vercel deploys with `potential_dataloss` errors because the generated schema drifts from the live Neon database (it wants to drop columns/tables that still contain data). We do NOT want migrations to run during the build.
 
-Changes to implement:
+Required change (Option C — remove db push from build):
 
-Left Navigation Sidebar:
+1. In package.json, change the `build` script from:
 
-Add a fixed left navigation sidebar matching the design layout with the following sections:
+   "build": "prisma generate && prisma db push && next build"
 
-Header: Logo, application title ("Ad Intelligence"), and subtitle ("Competitor Tracker").
+   to:
 
-Navigation Items:
+   "build": "prisma generate && next build"
 
-Insights (Market intelligence)
+   (Remove the `prisma db push` segment only. Keep `prisma generate` and `next build`.)
 
-Overview (Charts & summary)
+2. If there is any other script (e.g. `vercel-build`, `postinstall`, or a prebuild hook) that also runs `prisma db push`, remove the `prisma db push` invocation from those build/deploy scripts too, so no schema push runs automatically during a Vercel deployment.
 
-Ad Gallery (Browse all creatives)
-
-Competitors (Deep competitor intel)
-
-Creative Analysis (Keywords & messaging)
-
-Dynamic Selected State: Display the main target Company Name and a dynamic list of Selected Competitors underneath the navigation links.
-
-Footer Action Buttons: Add two action buttons at the bottom of the sidebar:
-
-Sync: Triggers a sync/refresh of the current dataset.
-
-Sheet: Exports and syncs the current dashboard data directly to Google Sheets / spreadsheet storage.
-
-Self-Company Priority Display ("Self" First in Visuals & Scorecards):
-
-Update the scorecard and metric grid rendering logic to ensure the primary target company (where competitor_name matches the searched domain or is_self is true) is displayed first (as shown in the scorecards layout), followed by the selected competitors.
-
-"Add Extra Competitor" Modal UI & Analysis Trigger:
-
-Fix the modal overlay so that when "Add Extra Competitor" is clicked:
-
-The modal pops up over a dimmed background with clean styling and input fields.
-
-When the user inputs a domain and clicks "Analyze", trigger the AI workflow execution API for the new competitor, query the updated results from the Postgres DB, and rebuild/re-render the entire dashboard automatically.
-
-Fix Competitor Domain Display Column in Competitors Table:
-
-Fix the bug in the Competitors Table where the COMPETITOR DOMAIN column displays the main searched domain (betabionics.com) for all rows.
-
-Update the table mapping so that COMPETITOR DOMAIN displays each competitor's actual domain (e.g., medtronic-diabetes.com for Medtronic Diabetes) extracted from the competitor payload's landing_page_url / domain field.
-
-Dynamic Date Range for "Ad Activity Pulse" Heatmap:
-
-Modify the "Ad Activity Pulse" section to dynamically render the heatmap grid based on the date range of the fetched ad data:
-
-Display a 7-day range view if data covers 7 days.
-
-Display a 30-day range view if data covers 30 days.
-
-Display a monthly range view (e.g., 5 months) if data spans multiple months.
+3. Do NOT add --accept-data-loss anywhere. Do NOT drop any columns or tables. Do NOT modify prisma/schema.prisma. Do NOT delete data.
 
 Constraints:
+- Touch ONLY package.json (and only the build/deploy script lines described above).
+- Do not modify, refactor, remove, or reformat any dependency, other script, model, field, file, or code.
+- Preserve all existing formatting, naming, comments, and logic everywhere else.
+- Do not add features, optimizations, or unrelated changes.
 
-Only touch the files/functions directly related to the points above.
-
-Do not change variable names, code style, or structure outside the scope of these changes.
-
-Do not add extra features, optimizations, or refactors that weren't requested.
-
-If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
-
-After implementing, list exactly which files and lines were changed, and why.
+After implementing, list exactly which file and lines were changed and why, and show the before/after of the build script.
