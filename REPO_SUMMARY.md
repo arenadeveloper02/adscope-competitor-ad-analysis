@@ -1,22 +1,24 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T15:30:34.474Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T15:52:14.315Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. This edit restructures the top header (logo left, + Add Competitor right), moves tabs to a secondary nav bar that only appears after ads are fetched, removes Sync/Sheet/Back/Clear actions, hides the domain input + competitor table after the dashboard loads (re-shown via Add Competitor), fixes the Ad Gallery search icon/placeholder overlap, and shows Active Ads as an absolute count. Files changed: components/TopNav.tsx (header restructure, removed Sync/Sheet, secondary tab bar with conditional visibility, added onAddCompetitor/showTabs props), components/DashboardClient.tsx (conditional setup/table visibility, isPickingMore state for Add Competitor flow, removed sync/export/clear handlers and buttons, updated TopNav props), components/AdGallery.tsx (search input left padding fix), components/AdsDashboard.tsx (Active Ads KPI now absolute number), components/CreativeAnalysis.tsx (removed Back button and onBack prop), prisma/schema.prisma (echoed unchanged — no schema changes).
+AdScope — Competitor Ad Analysis. Edit: added a competitor management dropdown (with per-competitor Remove action) to the top header next to + Add Competitor (components/TopNav.tsx); wired remove logic in components/DashboardClient.tsx so removing a competitor updates state, filters ads, and recomputes dashboard KPIs/scorecards/heatmap; removed Sync/Sheet buttons and their props from components/Sidebar.tsx; kept the Ad Gallery search input left-padding fix in components/AdGallery.tsx; Active Ads KPI already shows the absolute count in AdsDashboard.tsx (unchanged); no Back/Clear/Search-Other-Company buttons exist in the rendered UI. prisma/schema.prisma is echoed unchanged (additive-safe).
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 38
 
 ## Features
 
-- Header with logo/title left and + Add Competitor right
-- Secondary tab navigation shown only after ads are fetched
-- Setup input and competitor table hidden once dashboard loads
-- Add Competitor re-opens the selection table with Get Ads for Selected
-- Ad Gallery search icon spacing fix
-- Active Ads KPI displays absolute count
+- Competitor discovery by domain via Arena workflow
+- Competitor selection table with Get Ads for Selected
+- Ads dashboard with KPIs, scorecards, heatmap, themes, and signals
+- Ad Gallery with competitor/format/search filters
+- Competitor Intel and Creative Analysis tabs
+- Top-header competitor dropdown with remove action
+- Add Competitor modal that re-opens the selection table
+- Server-side session snapshots keyed by Arena emailId
 
 ## Tech Stack
 
@@ -139,7 +141,7 @@ AdScope — Competitor Ad Analysis. This edit restructures the top header (logo 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T15:30:34.474Z
+- **Updated at:** 2026-08-24T15:52:14.315Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
@@ -151,6 +153,14 @@ Restructure the top header to only include the logo/title block on the left and 
 Completely remove the "Sync" and "Sheet" buttons from the application.
 
 Move the main navigation tabs (Insights, Ad Gallery, Competitors, Creative Analysis) out of the top header and place them in a secondary navigation bar positioned directly below the top header.
+
+Competitor Management Dropdown (Top Header):
+
+In the top header, adjacent to or integrated with the "+ Add Competitor" section, add a dropdown menu that displays the current list of active/analyzed competitors.
+
+Add a "Remove" action (e.g., an 'X' or trash icon) next to each competitor in this dropdown, allowing the user to easily delete a competitor from the current analysis view.
+
+Ensure that adding a new competitor (via "+ Add Competitor") or removing one from this dropdown updates the application state and re-renders the dashboard visuals accordingly.
 
 Conditional Visibility of Navigation & Dashboard:
 

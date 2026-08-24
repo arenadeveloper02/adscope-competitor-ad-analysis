@@ -1,18 +1,15 @@
 "use client"
 
 import {
-  FileSpreadsheet,
   Images,
   LayoutDashboard,
   Lightbulb,
   MessageSquareText,
-  RefreshCw,
   Target,
   Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Competitor } from '@/lib/types'
-import Spinner from '@/components/Spinner'
 
 interface NavItem {
   id: string
@@ -34,11 +31,6 @@ interface SidebarProps {
   selectedCompetitors: Competitor[]
   activeSection: string
   onNavigate: (sectionId: string) => void
-  onSync: () => void
-  onSheet: () => void
-  isSyncing: boolean
-  isExporting: boolean
-  sheetMessage: string
 }
 
 export default function Sidebar({
@@ -46,11 +38,6 @@ export default function Sidebar({
   selectedCompetitors,
   activeSection,
   onNavigate,
-  onSync,
-  onSheet,
-  isSyncing,
-  isExporting,
-  sheetMessage,
 }: SidebarProps) {
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-grey-200 bg-white lg:flex">
@@ -114,33 +101,6 @@ export default function Sidebar({
           )}
         </div>
       </nav>
-
-      {/* Footer action buttons */}
-      <div className="border-t border-grey-100 px-4 py-4">
-        {sheetMessage && <p className="mb-2 text-[10px] leading-4 text-grey-600">{sheetMessage}</p>}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="ds-btn-secondary flex-1"
-            onClick={onSync}
-            disabled={isSyncing}
-            aria-label="Sync current dataset"
-          >
-            {isSyncing ? <Spinner /> : <RefreshCw className="h-4 w-4" />}
-            Sync
-          </button>
-          <button
-            type="button"
-            className="ds-btn-primary flex-1"
-            onClick={onSheet}
-            disabled={isExporting}
-            aria-label="Export dashboard to spreadsheet storage"
-          >
-            {isExporting ? <Spinner /> : <FileSpreadsheet className="h-4 w-4" />}
-            Sheet
-          </button>
-        </div>
-      </div>
     </aside>
   )
 }

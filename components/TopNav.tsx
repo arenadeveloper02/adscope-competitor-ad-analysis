@@ -1,8 +1,9 @@
 "use client"
 
-import { Images, Lightbulb, MessageSquareText, Plus, Target, Users } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, Images, Lightbulb, MessageSquareText, Plus, Target, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { DashboardTab } from '@/lib/types'
+import type { Competitor, DashboardTab } from '@/lib/types'
 
 interface TabItem {
   id: DashboardTab
@@ -19,22 +20,29 @@ const TAB_ITEMS: TabItem[] = [
 
 interface TopNavProps {
   companyName: string
+  competitors: Competitor[]
   activeTab: DashboardTab
   onTabChange: (tab: DashboardTab) => void
   onAddCompetitor: () => void
+  onRemoveCompetitor: (id: string) => void
   showTabs: boolean
 }
 
 export default function TopNav({
   companyName,
+  competitors,
   activeTab,
   onTabChange,
   onAddCompetitor,
+  onRemoveCompetitor,
   showTabs,
 }: TopNavProps) {
+  // Dropdown listing the current active/analyzed competitors with a remove action
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
   return (
     <header className="sticky top-0 z-40 border-b border-grey-200 bg-white">
-      {/* Top row: logo/title block on the left, Add Competitor action on the right */}
+      {/* Top row: logo/title block on the left, competitor dropdown + Add Competitor action on the right */}
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ds bg-brand text-white">
@@ -45,15 +53,71 @@ export default function TopNav({
             <p className="truncate text-xs text-grey-500">{companyName || 'Competitor Tracker'}</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="ds-btn-primary"
-          onClick={onAddCompetitor}
-          aria-label="Add a competitor"
-        >
-          <Plus className="h-5 w-5" />
-          Add Competitor
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Competitor management dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              className="ds-btn-secondary"
+              onClick={() => setIsDropdownOpen((open) => !open)}
+              aria-haspopup="true"
+              aria-expanded={isDropdownOpen}
+              aria-label="Manage competitors"
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Competitors</span>
+              <span className="inline-flex items-center rounded-full bg-brand-surface px-2 py-0.5 text-xs font-semibold text-brand">
+                {competitors.length}
+              </span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {isDropdownOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-ds-lg border border-grey-200 bg-white p-2 shadow-ds-lg">
+                <p className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-grey-500">
+                  Active Competitors
+                </p>
+                {competitors.length === 0 ? (
+                  <p className="px-3 pb-2 text-xs text-grey-500">No competitors yet</p>
+                ) : (
+                  <ul className="max-h-64 overflow-y-auto">
+                    {competitors.map((competitor) => (
+                      <li
+                        key={competitor.id}
+                        className="flex items-center justify-between gap-2 rounded-ds px-3 py-2 hover:bg-grey-50"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-grey-900">
+                            {competitor.name}
+                          </span>
+                          <span className="block truncate text-xs text-grey-500">{competitor.domain}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveCompetitor(competitor.id)}
+                          className="shrink-0 rounded-ds p-1 text-grey-500 transition-colors hover:bg-grey-100 hover:text-grey-900"
+                          aria-label={`Remove ${competitor.name}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            className="ds-btn-primary"
+            onClick={onAddCompetitor}
+            aria-label="Add a competitor"
+          >
+            <Plus className="h-5 w-5" />
+            Add Competitor
+          </button>
+        </div>
       </div>
 
       {/* Secondary navigation bar below the top header — visible only after ads are fetched */}

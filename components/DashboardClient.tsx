@@ -21,6 +21,7 @@ import CompetitorsTable from '@/components/CompetitorsTable'
 import CreativeAnalysis from '@/components/CreativeAnalysis'
 import Spinner from '@/components/Spinner'
 import TopNav from '@/components/TopNav'
+import { deriveAdFormat } from '@/components/AdCard'
 
 function cleanDomainInput(input: string): string {
   return input
@@ -215,6 +216,40 @@ export default function DashboardClient() {
     setIsModalOpen(false)
   }
 
+  // Removes a competitor from the current analysis (triggered by the top header
+  // competitor dropdown) and re-renders the dashboard visuals accordingly.
+  const handleRemoveCompetitor = (id: string) => {
+    const target = competitors.find((c) => c.id === id)
+    setCompetitors((prev) => prev.filter((c) => c.id !== id))
+    setSelectedIds((prev) => prev.filter((x) => x !== id))
+    setAds((prev) => prev.filter((ad) => ad.competitorId !== id))
+    if (!target) return
+    setDashboard((prev) => {
+      if (!prev) return prev
+      const scorecards = prev.scorecards.filter((s) => s.competitorId !== id)
+      const heatmap = prev.heatmap.filter((row) => row.competitorName !== target.name)
+      const remainingAds = prev.ads.filter((ad) => ad.competitorId !== id)
+      const total = remainingAds.length
+      const activeCount = remainingAds.filter((ad) => ad.active ?? true).length
+      const imageCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'image').length
+      const videoCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'video').length
+      return {
+        ...prev,
+        scorecards,
+        heatmap,
+        ads: remainingAds,
+        kpis: {
+          ...prev.kpis,
+          totalAds: total,
+          activePct: total > 0 ? Math.round((activeCount / total) * 100) : 0,
+          imageCreatives,
+          videoCreatives,
+          competitorCount: scorecards.length,
+        },
+      }
+    })
+  }
+
   const handleFindInGallery = (query: string) => {
     setGallerySearch(query)
     setGalleryFormat('all')
@@ -239,9 +274,11 @@ export default function DashboardClient() {
     <div className="min-h-screen">
       <TopNav
         companyName={cleanDomainInput(domain)}
+        competitors={competitors}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onAddCompetitor={() => setIsModalOpen(true)}
+        onRemoveCompetitor={handleRemoveCompetitor}
         showTabs={dashboardVisible}
       />
 
@@ -330,13 +367,17 @@ export default function DashboardClient() {
           </section>
         )}
 
+        {/* Ads workflow error state */}
         {adsError && (
-          <div className="ds-card mt-4 p-4">
-            <p className="text-sm text-errords">{adsError}</p>
+          <div className="ds-card mt-6 p-6 text-center">
+            <p className="text-sm font-medium text-errords">{adsError}</p>
+            <p className="mt-1 text-xs text-grey-500">
+              Select your competitors and click &quot;Get Ads for Selected&quot; to try again.
+            </p>
           </div>
         )}
 
-        {/* Dashboard sections — only rendered after a successful ads fetch */}
+        {/* Dashboard sections — visible only after a successful ads fetch */}
         {dashboardVisible && dashboard && (
           <>
             {activeTab === 'insights' && <AdsDashboard data={dashboard} />}
