@@ -1,25 +1,22 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T12:46:51.857Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T15:30:34.474Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. This edit adds a complete Creative Analysis tab (KPI + donut metric cards, dynamic top keywords, messaging tag cloud, headline openers, per-competitor headlines), a reworked Ad Gallery with a working multi-filter bar and richer ad cards, Back / Clear-and-search-new-company navigation, cancellable Sync and Sheet header actions, server-side session persistence (DashboardSnapshot table keyed by Arena emailId — no localStorage), and hover tooltips across all visualizations.
+AdScope — Competitor Ad Analysis. This edit restructures the top header (logo left, + Add Competitor right), moves tabs to a secondary nav bar that only appears after ads are fetched, removes Sync/Sheet/Back/Clear actions, hides the domain input + competitor table after the dashboard loads (re-shown via Add Competitor), fixes the Ad Gallery search icon/placeholder overlap, and shows Active Ads as an absolute count. Files changed: components/TopNav.tsx (header restructure, removed Sync/Sheet, secondary tab bar with conditional visibility, added onAddCompetitor/showTabs props), components/DashboardClient.tsx (conditional setup/table visibility, isPickingMore state for Add Competitor flow, removed sync/export/clear handlers and buttons, updated TopNav props), components/AdGallery.tsx (search input left padding fix), components/AdsDashboard.tsx (Active Ads KPI now absolute number), components/CreativeAnalysis.tsx (removed Back button and onBack prop), prisma/schema.prisma (echoed unchanged — no schema changes).
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 38
 
 ## Features
 
-- Creative Analysis tab with 4 KPI cards and 4 donut metric cards (Image/Video/CTA/Keyword coverage) with Filter gallery links
-- Top keywords overall + per-competitor bars that update dynamically with competitor/format filters
-- Messaging language tag cloud, headline opener pattern cards, and numbered top unique headlines per competitor
-- Ad Gallery filter bar: competitor pills, format pills, and live search (single search input, redundant one removed)
-- Richer ad cards: Live status badge, format badge, brand pill, timestamp, headline, copy, destination link
-- Cancellable Sync and Sheet export actions with clear status feedback in TopNav
-- Back navigation to the domain input plus Clear / Search Other Company reset action
-- Server-side state persistence via DashboardSnapshot (survives browser refresh, keyed by emailId)
-- Hover tooltips on donuts, bars, progress bars, ad share bars, and heatmap cells
+- Header with logo/title left and + Add Competitor right
+- Secondary tab navigation shown only after ads are fetched
+- Setup input and competitor table hidden once dashboard loads
+- Add Competitor re-opens the selection table with Get Ads for Selected
+- Ad Gallery search icon spacing fix
+- Active Ads KPI displays absolute count
 
 ## Tech Stack
 
@@ -142,58 +139,46 @@ AdScope — Competitor Ad Analysis. This edit adds a complete Creative Analysis 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T12:46:51.857Z
+- **Updated at:** 2026-08-24T15:30:34.474Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-Creative Analysis Tab Complete Build (Images 1, 2, 3, 4, 10):
+Top Header & Navigation Restructuring:
 
-Implement the complete Creative Analysis view containing:
+Restructure the top header to only include the logo/title block on the left and the "+ Add Competitor" action button on the right.
 
-KPI & Donut Metrics Grid: 4 top summary cards followed by 4 percentage donut chart cards (Have Image Creative, Have Video Creative, Have Clear CTA, Have Keyword Data) with interactive "Filter gallery →" action links.
+Completely remove the "Sync" and "Sheet" buttons from the application.
 
-Top Keywords Section: Overall keyword horizontal bar charts and individual per-competitor keyword volume breakdowns.
+Move the main navigation tabs (Insights, Ad Gallery, Competitors, Creative Analysis) out of the top header and place them in a secondary navigation bar positioned directly below the top header.
 
-Dynamic Keyword Filtering: Ensure the displayed keywords update dynamically whenever competitor or creative format filters are modified.
+Conditional Visibility of Navigation & Dashboard:
 
-Messaging Language & Headline Openers: A colorful tag cloud for messaging keywords, a grid of common headline opener pattern cards, and numbered lists of top unique headlines per competitor.
+Hide the main navigation tabs (Insights, Ad Gallery, Competitors, Creative Analysis) and all corresponding dashboard sections on initial load.
 
-Navigation "Back" Option & Search UI Cleanup:
+These tabs and sections must only become visible after the user successfully fetches data by clicking the "Get Ads for Selected" button.
 
-Add a clear "Back" button / navigation control across all sub-views and dashboard sections to allow users to navigate back to the domain input screen.
+Toggle Initial Input & Competitor Table Views:
 
-Remove redundant or misaligned search bars from component headers (such as inside the Ad Gallery summary section).
+Once the dashboard data loads and becomes visible, hide/unmount the initial "Analyze a Domain" input block and the "Competitors" selection table.
 
-Sync & Sheet Header Actions with Cancel Controls (Image 5):
+Add Competitor Flow: When the user clicks the top header's "+ Add Competitor" button, add the new competitor to the state and re-display the Competitors selection table so the user can select them. The "Get Ads for Selected" button must also be visible during this state to allow the user to trigger a fresh analysis.
 
-Update the top right Sync and Sheet header buttons:
+Search Bar CSS Fix (Ad Gallery):
 
-Provide an interactive loading/cancellation mechanism for Sync (e.g., allow cancelling an in-progress sync request).
+Fix the CSS layout bug in the Ad Gallery search bar where the magnifying glass icon overlaps with the placeholder text ("Search headlines, CTAs, keywords...").
 
-Add clear status feedback and cancellation options for Sheet data exports.
+Apply proper left padding (e.g., pl-10) to the input element and adjust the absolute positioning of the icon to maintain a clean gap.
 
-State Persistence & "Clear / Search New Company" Option (Image 6):
+Remove "Back" and "Clear" Actions:
 
-Implement state persistence (via localStorage or session state) so browser refreshes do not wipe out the searched domain, selected competitors, or fetched analysis metrics.
+Completely remove any "Back" navigation buttons from all dashboard views.
 
-Add an explicit "Clear" / "Search Other Company" CTA button on the UI to allow users to reset the state and analyze a new domain on demand.
+Completely remove the "Clear" and "Search Other Company" reset buttons from the UI.
 
-Interactive Hover Tooltips on Visuals:
+Active Ads KPI Formatting:
 
-Add hover tooltips across all visual elements (donut charts, horizontal bar charts, progress bars, ad share bars, and heatmaps) to display precise values, percentages, and metadata on hover.
-
-Ad Gallery Grid Layout & Multi-Filter Controls (Images 8 & 9):
-
-Gallery Cards (Image 8): Render ad creative cards in a grid displaying status badge (Live), format badge (image, text, video), brand pill, timestamp, headline, body text snippet, and destination link.
-
-Working Filter Bar (Image 9): Implement a fully functional filter bar at the top of the Ad Gallery containing:
-
-Competitor filter pills (All, and individual competitor buttons).
-
-Creative format filter pills (All, Image, Text, Video).
-
-Live search input box ("Search headlines, CTAs, keywords...") that filters displayed cards in real time.
+Update the metric displayed on the "Active Ads" KPI summary card. It must display the absolute number of active ads (e.g., 32) instead of a percentage value (e.g., 100%).
 
 Constraints:
 

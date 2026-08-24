@@ -122,7 +122,8 @@ export default function AdGallery({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search headlines, CTAs, keywords..."
-            className="ds-input pl-9"
+            className="ds-input pl-10"
+            style={{ paddingLeft: '2.5rem' }}
             aria-label="Search ads"
           />
         </div>

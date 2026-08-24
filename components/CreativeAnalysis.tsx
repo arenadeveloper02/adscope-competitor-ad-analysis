@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { ArrowLeft, BarChart3, Filter, ListOrdered, MessageSquareText, Type } from 'lucide-react'
+import { BarChart3, Filter, ListOrdered, MessageSquareText, Type } from 'lucide-react'
 import type { AdFormat, AdsDashboardData, CompetitorAd } from '@/lib/types'
 import { deriveAdFormat } from '@/components/AdCard'
 
@@ -9,7 +9,6 @@ interface CreativeAnalysisProps {
   data: AdsDashboardData
   ads: CompetitorAd[]
   onFilterGallery: (format: 'all' | AdFormat, query: string) => void
-  onBack: () => void
 }
 
 const TAG_COLORS: Array<{ bg: string; text: string }> = [
@@ -66,7 +65,7 @@ function Donut({ pct, color, label }: { pct: number; color: string; label: strin
   )
 }
 
-export default function CreativeAnalysis({ data, ads, onFilterGallery, onBack }: CreativeAnalysisProps) {
+export default function CreativeAnalysis({ data, ads, onFilterGallery }: CreativeAnalysisProps) {
   const [competitorFilter, setCompetitorFilter] = useState<string>('all')
   const [formatFilter, setFormatFilter] = useState<'all' | AdFormat>('all')
 
@@ -168,15 +167,9 @@ export default function CreativeAnalysis({ data, ads, onFilterGallery, onBack }:
 
   return (
     <div className="mt-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <MessageSquareText className="h-5 w-5 text-grey-600" />
-          <h2 className="text-lg font-semibold text-grey-900">Creative Analysis</h2>
-        </div>
-        <button type="button" className="ds-btn-secondary" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </button>
+      <div className="flex items-center gap-2">
+        <MessageSquareText className="h-5 w-5 text-grey-600" />
+        <h2 className="text-lg font-semibold text-grey-900">Creative Analysis</h2>
       </div>
 
       {/* Filters — keyword sections update live when these change */}
@@ -309,132 +302,95 @@ export default function CreativeAnalysis({ data, ads, onFilterGallery, onBack }:
           )
           const entries = Array.from(counts.entries())
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 4)
-          const max = Math.max(1, ...entries.map(([, count]) => count))
+            .slice(0, 5)
+          const compMax = Math.max(1, ...entries.map(([, count]) => count))
           return (
             <div key={name} className="ds-card p-5">
-              <h4 className="text-sm font-semibold text-grey-900">{name}</h4>
-              <p className="text-xs text-grey-500">{compAds.length} ads in current filter</p>
-              <div className="mt-3 space-y-2">
-                {entries.map(([keyword, count]) => (
-                  <button
-                    key={`${name}-${keyword}`}
-                    type="button"
-                    onClick={() => onFilterGallery('all', keyword)}
-                    className="block w-full text-left"
-                    title={`${name} — ${keyword}: ${count} ads`}
-                  >
-                    <div className="flex items-center justify-between text-xs text-grey-700">
-                      <span>{keyword}</span>
-                      <span className="font-semibold text-grey-900">{count}</span>
+              <h3 className="text-sm font-semibold text-grey-900">{name}</h3>
+              <p className="mt-1 text-xs text-grey-500">{compAds.length} ads in current filter</p>
+              {entries.length === 0 ? (
+                <p className="mt-3 text-xs text-grey-500">No keyword data.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {entries.map(([kw, count]) => (
+                    <div key={kw}>
+                      <div className="flex items-center justify-between text-xs text-grey-700">
+                        <span className="font-medium">{kw}</span>
+                        <span className="font-semibold text-grey-900">{count}</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-grey-100">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.round((count / compMax) * 100)}%`,
+                            backgroundColor: '#00A7D6',
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-grey-100">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.round((count / max) * 100)}%`, backgroundColor: '#00A7D6' }}
-                      />
-                    </div>
-                  </button>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Messaging language tag cloud */}
+      {/* Common Headline Openers */}
       <div className="ds-card mt-6 p-5">
         <div className="flex items-center gap-2">
-          <MessageSquareText className="h-5 w-5 text-grey-600" />
-          <h3 className="text-base font-semibold text-grey-900">Messaging Language</h3>
-        </div>
-        <p className="mt-1 text-xs text-grey-500">Recurring words and phrases across headlines and copy. Click to search.</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {cloudWords.map((word, index) => {
-            const palette = TAG_COLORS[index % TAG_COLORS.length] ?? { bg: '#F3F8FE', text: '#155CBA' }
-            return (
-              <button
-                key={word}
-                type="button"
-                onClick={() => onFilterGallery('all', word)}
-                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-75"
-                style={{ backgroundColor: palette.bg, color: palette.text }}
-                title={`Search gallery for "${word}"`}
-              >
-                {word}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Headline openers */}
-      <div className="ds-card mt-4 p-5">
-        <div className="flex items-center gap-2">
-          <Type className="h-5 w-5 text-grey-600" />
+          <ListOrdered className="h-5 w-5 text-grey-600" />
           <h3 className="text-base font-semibold text-grey-900">Common Headline Openers</h3>
         </div>
-        <p className="mt-1 text-xs text-grey-500">The most frequent two-word patterns starting competitor headlines.</p>
+        <p className="mt-1 text-xs text-grey-500">
+          Recurring two-word openers across filtered headlines. Click to search the gallery.
+        </p>
         {openers.length === 0 ? (
           <p className="mt-4 text-sm text-grey-600">No headline data for the current filters.</p>
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 space-y-2">
             {openers.map(([opener, info]) => (
               <button
                 key={opener}
                 type="button"
                 onClick={() => onFilterGallery('all', opener)}
-                className="rounded-ds border border-grey-100 p-4 text-left transition-colors hover:bg-grey-50"
-                title={`"${opener}" opens ${info.count} headlines — e.g. ${info.sample}`}
+                className="flex w-full items-center justify-between gap-3 rounded-ds border border-grey-100 px-3 py-2 text-left transition-colors hover:bg-grey-50"
+                title={`\"${opener}...\" appears in ${info.count} headlines`}
               >
-                <p className="text-sm font-semibold text-grey-900">“{opener}...”</p>
-                <p className="mt-1 text-xs text-grey-500">{info.count} headlines</p>
-                <p className="mt-2 truncate text-xs text-grey-600">{info.sample}</p>
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-grey-900">&quot;{opener}...&quot;</span>
+                  <span className="block truncate text-xs text-grey-500">{info.sample}</span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-grey-900">{info.count}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Top unique headlines per competitor */}
-      <div className="ds-card mt-4 p-5">
+      {/* Creative Word Cloud */}
+      <div className="ds-card mt-6 p-5">
         <div className="flex items-center gap-2">
-          <ListOrdered className="h-5 w-5 text-grey-600" />
-          <h3 className="text-base font-semibold text-grey-900">Top Headlines by Competitor</h3>
+          <Type className="h-5 w-5 text-grey-600" />
+          <h3 className="text-base font-semibold text-grey-900">Creative Word Cloud</h3>
         </div>
-        {filteredCompetitors.length === 0 ? (
-          <p className="mt-4 text-sm text-grey-600">No headlines for the current filters.</p>
-        ) : (
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {filteredCompetitors.map((name) => {
-              const headlines = Array.from(
-                new Set(filteredAds.filter((ad) => ad.competitorName === name).map((ad) => ad.headline))
-              ).slice(0, 5)
-              return (
-                <div key={name} className="rounded-ds border border-grey-100 p-4">
-                  <h4 className="text-sm font-semibold text-grey-900">{name}</h4>
-                  <ol className="mt-2 space-y-1.5">
-                    {headlines.map((headline, index) => (
-                      <li key={headline} className="flex items-start gap-2 text-xs text-grey-700">
-                        <span className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-surface text-[10px] font-semibold text-brand">
-                          {index + 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onFilterGallery('all', headline)}
-                          className="text-left leading-5 hover:text-brand hover:underline"
-                          title={`Search gallery for this headline`}
-                        >
-                          {headline}
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        <p className="mt-1 text-xs text-grey-500">Click a word to search the gallery.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {cloudWords.map((word, index) => {
+            const color = TAG_COLORS[index % TAG_COLORS.length] ?? { bg: '#F3F8FE', text: '#155CBA' }
+            return (
+              <button
+                key={word}
+                type="button"
+                onClick={() => onFilterGallery('all', word)}
+                className="rounded-full px-3 py-1 text-xs font-medium transition-opacity hover:opacity-80"
+                style={{ backgroundColor: color.bg, color: color.text }}
+              >
+                {word}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

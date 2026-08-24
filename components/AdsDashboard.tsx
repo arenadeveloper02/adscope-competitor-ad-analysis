@@ -41,9 +41,12 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
   // Self company (primary target) is always displayed first in scorecards
   const orderedScorecards = [...data.scorecards].sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0))
 
+  // Absolute number of active ads across the tracked set (not a percentage)
+  const activeAdsTotal = data.scorecards.reduce((sum, card) => sum + card.activeAds, 0)
+
   const kpiCards = [
     { label: 'Total Ads Tracked', value: String(data.kpis.totalAds), icon: BarChart3 },
-    { label: 'Active Ads', value: `${data.kpis.activePct}%`, icon: Activity },
+    { label: 'Active Ads', value: String(activeAdsTotal), icon: Activity },
     { label: 'Image Creatives', value: String(data.kpis.imageCreatives), icon: ImageIcon },
     { label: 'Video Creatives', value: String(data.kpis.videoCreatives), icon: Video },
     { label: 'Competitors', value: String(data.kpis.competitorCount), icon: Users },
