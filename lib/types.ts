@@ -5,6 +5,7 @@ export interface Competitor {
   name: string
   domain: string
   matchScore: number
+  description?: string
 }
 
 export interface CompetitorAd {
@@ -24,5 +25,73 @@ export interface ActionResult {
 export interface CompetitorSearchResult {
   success: boolean
   competitors?: Competitor[]
+  error?: string
+}
+
+export interface FormatMix {
+  image: number
+  text: number
+  video: number
+}
+
+export type CompetitorAdStatus = 'LIVE' | 'PAUSED'
+
+export interface CompetitorScorecard {
+  competitorId: string
+  name: string
+  domain: string
+  totalAds: number
+  activeAds: number
+  formatMix: FormatMix
+  marketIntensity: number
+  headlineWords: string[]
+  status: CompetitorAdStatus
+}
+
+export interface HeatmapRow {
+  competitorName: string
+  monthly: number[]
+}
+
+export interface CtaUsage {
+  label: string
+  count: number
+}
+
+export interface MessagingTheme {
+  theme: string
+  frequency: number
+}
+
+export type SignalType = 'Opportunity' | 'Trend' | 'Alert' | 'Watch'
+
+export interface StrategicSignal {
+  type: SignalType
+  title: string
+  description: string
+}
+
+export interface AdsDashboardKpis {
+  totalAds: number
+  activePct: number
+  imageCreatives: number
+  videoCreatives: number
+  competitorCount: number
+}
+
+export interface AdsDashboardData {
+  kpis: AdsDashboardKpis
+  scorecards: CompetitorScorecard[]
+  heatmap: HeatmapRow[]
+  keywords: string[]
+  ctas: CtaUsage[]
+  themes: MessagingTheme[]
+  signals: StrategicSignal[]
+  ads: CompetitorAd[]
+}
+
+export interface AdsAnalysisResult {
+  success: boolean
+  dashboard?: AdsDashboardData
   error?: string
 }

@@ -2,14 +2,23 @@
 
 import { useState } from 'react'
 import { Plus, Search, Megaphone, Users } from 'lucide-react'
-import type { Competitor, CompetitorAd } from '@/lib/types'
-import { fetchCompetitorAds, fetchSingleCompetitor } from '@/lib/mock-api'
-import { logAnalysis, searchCompetitors } from '@/lib/actions'
+import type { AdsDashboardData, Competitor, CompetitorAd } from '@/lib/types'
+import { logAnalysis, runAdsWorkflow, searchCompetitors } from '@/lib/actions'
 import { useArenaEmailId } from '@/components/arena-email-provider'
 import AddCompetitorModal from '@/components/AddCompetitorModal'
+import AdsDashboard from '@/components/AdsDashboard'
 import CompetitorsTable from '@/components/CompetitorsTable'
 import AdCard from '@/components/AdCard'
 import Spinner from '@/components/Spinner'
+
+function cleanDomainInput(input: string): string {
+  return input
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase()
+}
 
 export default function DashboardClient() {
   const emailId = useArenaEmailId()
@@ -17,9 +26,11 @@ export default function DashboardClient() {
   const [domain, setDomain] = useState('')
   const [domainError, setDomainError] = useState('')
   const [apiError, setApiError] = useState('')
+  const [adsError, setAdsError] = useState('')
   const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [ads, setAds] = useState<CompetitorAd[]>([])
+  const [dashboard, setDashboard] = useState<AdsDashboardData | null>(null)
   const [isFetchingCompetitors, setIsFetchingCompetitors] = useState(false)
   const [isFetchingAds, setIsFetchingAds] = useState(false)
   const [isAddingCompetitor, setIsAddingCompetitor] = useState(false)
@@ -49,6 +60,8 @@ export default function DashboardClient() {
       }
       setSelectedIds([])
       setAds([])
+      setDashboard(null)
+      setAdsError('')
       setHasFetchedAds(false)
       setHasSearched(true)
     } catch {
@@ -56,6 +69,8 @@ export default function DashboardClient() {
       setApiError('Something went wrong while fetching competitors. Please try again.')
       setSelectedIds([])
       setAds([])
+      setDashboard(null)
+      setAdsError('')
       setHasFetchedAds(false)
       setHasSearched(true)
     } finally {
@@ -77,10 +92,25 @@ export default function DashboardClient() {
 
   const handleGetAds = async () => {
     if (isFetchingAds || selectedIds.length === 0) return
+    const selected = competitors.filter((c) => selectedIds.includes(c.id))
     setIsFetchingAds(true)
+    setAdsError('')
     try {
-      const results = await fetchCompetitorAds(selectedIds, competitors)
-      setAds(results)
+      const companyName = domain.trim() || selected[0]?.domain || 'unknown'
+      const result = await runAdsWorkflow(companyName, emailId, selected)
+      if (result.success && result.dashboard) {
+        setDashboard(result.dashboard)
+        setAds(result.dashboard.ads)
+      } else {
+        setDashboard(null)
+        setAds([])
+        setAdsError(result.error ?? 'Something went wrong while fetching ads. Please try again.')
+      }
+      setHasFetchedAds(true)
+    } catch {
+      setDashboard(null)
+      setAds([])
+      setAdsError('Something went wrong while fetching ads. Please try again.')
       setHasFetchedAds(true)
     } finally {
       setIsFetchingAds(false)
@@ -89,16 +119,36 @@ export default function DashboardClient() {
 
   const handleAddCompetitor = async (newDomain: string) => {
     if (isAddingCompetitor) return
+    const cleaned = cleanDomainInput(newDomain)
+    if (!cleaned) return
     setIsAddingCompetitor(true)
-    void logAnalysis(newDomain, emailId)
+    void logAnalysis(cleaned, emailId)
     try {
-      const competitor = await fetchSingleCompetitor(newDomain)
-      if (!competitor) return
+      const label = cleaned.split('.')[0] ?? cleaned
+      const name = label ? label.charAt(0).toUpperCase() + label.slice(1) : cleaned
+      const competitor: Competitor = {
+        id: `comp-${Date.now()}-manual`,
+        name,
+        domain: cleaned,
+        matchScore: 60 + ((cleaned.length * 7) % 36),
+      }
+      const workflowCompetitors = [
+        ...competitors.filter((c) => selectedIds.includes(c.id)),
+        competitor,
+      ]
       setCompetitors((prev) => [...prev, competitor])
+      setSelectedIds((prev) => [...prev, competitor.id])
       setApiError('')
       setHasSearched(true)
-      const newAds = await fetchCompetitorAds([competitor.id], [competitor])
-      setAds((prev) => [...prev, ...newAds])
+      const companyName = domain.trim() || cleaned
+      const result = await runAdsWorkflow(companyName, emailId, workflowCompetitors)
+      if (result.success && result.dashboard) {
+        setDashboard(result.dashboard)
+        setAds(result.dashboard.ads)
+        setAdsError('')
+      } else {
+        setAdsError(result.error ?? 'Something went wrong while analyzing the new competitor. Please try again.')
+      }
       setHasFetchedAds(true)
       setIsModalOpen(false)
     } finally {
@@ -248,7 +298,7 @@ export default function DashboardClient() {
         {isFetchingAds ? (
           <div className="ds-card mt-4 flex flex-col items-center justify-center gap-3 px-6 py-16 text-grey-600">
             <Spinner size="md" className="text-brand" />
-            <p className="text-sm">Pulling ad creatives from platforms...</p>
+            <p className="text-sm">Running the ads analysis workflow...</p>
           </div>
         ) : ads.length > 0 ? (
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -258,17 +308,29 @@ export default function DashboardClient() {
           </div>
         ) : (
           <div className="ds-card mt-4 px-6 py-16 text-center">
-            <p className="text-sm font-medium text-grey-700">
-              {hasFetchedAds ? 'No ads available' : 'No ads fetched yet'}
-            </p>
-            <p className="mt-1 text-xs text-grey-500">
-              {hasFetchedAds
-                ? 'The selected competitors are not running any ads right now.'
-                : 'Select competitors above and click "Get Ads for Selected" to see their ads.'}
-            </p>
+            {adsError ? (
+              <>
+                <p className="text-sm font-medium text-errords">Could not fetch ads</p>
+                <p className="mt-1 text-xs text-grey-500">{adsError}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-grey-700">
+                  {hasFetchedAds ? 'No ads available' : 'No ads fetched yet'}
+                </p>
+                <p className="mt-1 text-xs text-grey-500">
+                  {hasFetchedAds
+                    ? 'The selected competitors are not running any ads right now.'
+                    : 'Select competitors above and click "Get Ads for Selected" to see their ads.'}
+                </p>
+              </>
+            )}
           </div>
         )}
       </section>
+
+      {/* Ad intelligence dashboard */}
+      {dashboard && !isFetchingAds && <AdsDashboard data={dashboard} />}
 
       <AddCompetitorModal
         isOpen={isModalOpen}

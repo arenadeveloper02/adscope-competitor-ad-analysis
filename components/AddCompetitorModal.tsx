@@ -36,15 +36,15 @@ export default function AddCompetitorModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
       <div
-        className="absolute inset-0 bg-grey-900/70"
+        className="absolute inset-0 bg-grey-900/70 backdrop-blur-sm"
         onClick={() => {
           if (!isSubmitting) onClose()
         }}
         aria-hidden="true"
       />
-      <div className="ds-card relative z-10 w-full max-w-md p-6 shadow-ds-xlg">
+      <div className="relative z-10 w-full max-w-md rounded-ds-lg border border-grey-200 bg-white p-6 shadow-ds-xlg">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-grey-900">Add Extra Competitor</h2>
@@ -72,7 +72,7 @@ export default function AddCompetitorModal({
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
             placeholder="e.g. rivalbrand.com"
-            className="ds-input mt-2"
+            className="ds-input mt-2 border-grey-300 bg-white text-grey-900 placeholder:text-grey-400"
             disabled={isSubmitting}
           />
           {error && <p className="mt-2 text-xs text-errords">{error}</p>}
