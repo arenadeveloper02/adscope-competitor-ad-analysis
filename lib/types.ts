@@ -98,3 +98,7 @@ export interface AdsAnalysisResult {
   dashboard?: AdsDashboardData
   error?: string
 }
+
+export type DashboardTab = 'insights' | 'gallery' | 'competitors'
+
+export type AdFormat = 'image' | 'text' | 'video'

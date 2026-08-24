@@ -47,9 +47,10 @@ export default function AddCompetitorModal({
       <div className="relative z-10 w-full max-w-md rounded-ds-lg border border-grey-200 bg-white p-6 shadow-ds-xlg">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-grey-900">Add Extra Competitor</h2>
+            <h2 className="text-lg font-semibold text-grey-900">Add Competitor</h2>
             <p className="mt-1 text-sm text-grey-600">
-              Enter a domain and we will fetch its ads automatically.
+              Enter a domain to add it to your competitor list. Select it and click &quot;Get Ads for
+              Selected&quot; when you&apos;re ready to analyze.
             </p>
           </div>
           <button
@@ -89,12 +90,12 @@ export default function AddCompetitorModal({
               {isSubmitting ? (
                 <>
                   <Spinner />
-                  Analyzing...
+                  Adding...
                 </>
               ) : (
                 <>
                   <Plus className="h-5 w-5" />
-                  Analyze
+                  Add
                 </>
               )}
             </button>

@@ -5,8 +5,6 @@ import {
   Eye,
   Image as ImageIcon,
   Lightbulb,
-  MousePointerClick,
-  Target,
   TrendingUp,
   Users,
   Video,
@@ -35,7 +33,6 @@ function SignalIcon({ type }: { type: SignalType }) {
 
 export default function AdsDashboard({ data }: AdsDashboardProps) {
   const heatMax = Math.max(1, ...data.heatmap.flatMap((row) => row.monthly))
-  const ctaMax = Math.max(1, ...data.ctas.map((c) => c.count))
   const themeMax = Math.max(1, ...data.themes.map((t) => t.frequency))
 
   // Dynamic date range labels: 7-day, 30-day, or monthly view depending on the fetched data
@@ -56,11 +53,11 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
     <div className="mt-8">
       <div className="flex items-center gap-2">
         <BarChart3 className="h-5 w-5 text-grey-600" />
-        <h2 className="text-lg font-semibold text-grey-900">Ad Intelligence Dashboard</h2>
+        <h2 className="text-lg font-semibold text-grey-900">Market Insights</h2>
       </div>
 
       {/* KPI Summary Cards */}
-      <div id="overview" className="mt-4 grid scroll-mt-6 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {kpiCards.map((kpi) => (
           <div key={kpi.label} className="ds-card p-4">
             <div className="flex items-center gap-2 text-grey-500">
@@ -196,50 +193,6 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
         </div>
       </div>
 
-      {/* Keyword Battlefield & CTA Arsenal */}
-      <div id="creative" className="mt-6 grid scroll-mt-6 grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="ds-card p-5">
-          <div className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-grey-600" />
-            <h3 className="text-base font-semibold text-grey-900">Keyword Battlefield</h3>
-          </div>
-          <p className="mt-1 text-xs text-grey-500">Target keywords competitors are contesting.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {data.keywords.map((keyword) => (
-              <span
-                key={keyword}
-                className="inline-flex items-center rounded-full border border-grey-200 bg-grey-50 px-3 py-1 text-xs font-medium text-grey-700"
-              >
-                {keyword}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="ds-card p-5">
-          <div className="flex items-center gap-2">
-            <MousePointerClick className="h-5 w-5 text-grey-600" />
-            <h3 className="text-base font-semibold text-grey-900">CTA Arsenal</h3>
-          </div>
-          <p className="mt-1 text-xs text-grey-500">Call-to-action usage frequency across tracked ads.</p>
-          <div className="mt-4 space-y-3">
-            {data.ctas.map((cta) => (
-              <div key={cta.label}>
-                <div className="flex items-center justify-between text-xs text-grey-700">
-                  <span className="font-medium">{cta.label}</span>
-                  <span className="font-semibold text-grey-900">{cta.count}</span>
-                </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-100">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${Math.round((cta.count / ctaMax) * 100)}%`, backgroundColor: '#1A73E8' }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Messaging Themes & Strategic Signals */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="ds-card p-5">
@@ -268,23 +221,31 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
             ))}
           </div>
         </div>
-        <div id="insights" className="ds-card scroll-mt-6 p-5">
+        <div className="ds-card p-5">
           <div className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-grey-600" />
             <h3 className="text-base font-semibold text-grey-900">Strategic Signals</h3>
           </div>
-          <p className="mt-1 text-xs text-grey-500">Categorized insights from the latest analysis.</p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <p className="mt-1 text-xs text-grey-500">Automated reads on competitor strategy shifts.</p>
+          <div className="mt-4 space-y-3">
             {data.signals.map((signal) => (
-              <div key={`${signal.type}-${signal.title}`} className="rounded-ds border border-grey-200 p-3">
+              <div key={signal.title} className="flex items-start gap-3 rounded-ds border border-grey-100 p-3">
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${signalBadgeStyles[signal.type]}`}
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${signalBadgeStyles[signal.type]}`}
                 >
                   <SignalIcon type={signal.type} />
-                  {signal.type}
                 </span>
-                <p className="mt-2 text-sm font-medium text-grey-900">{signal.title}</p>
-                <p className="mt-1 text-xs text-grey-600">{signal.description}</p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${signalBadgeStyles[signal.type]}`}
+                    >
+                      {signal.type}
+                    </span>
+                    <h4 className="text-sm font-semibold text-grey-900">{signal.title}</h4>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-grey-600">{signal.description}</p>
+                </div>
               </div>
             ))}
           </div>

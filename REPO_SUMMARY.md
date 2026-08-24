@@ -1,21 +1,22 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T11:19:49.175Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T11:55:22.902Z.
 
 ## Overview
 
-AdScope discovers competitors for any domain and analyzes their ads across platforms with an intelligence dashboard. This fix repairs the truncated/corrupted lib/actions.ts (TS1127/TS1136/TS1005 at line 737) with a complete, valid implementation, and keeps the build script free of prisma db push (build = prisma generate && next build). Prisma schema is returned with additive-only models (AnalysisSession, SheetExport) required by existing server actions.
+AdScope — Competitor Ad Analysis. This edit moves navigation from the left sidebar to a top navigation bar with three tab views (Insights, Ad Gallery, Competitors), removes the ad gallery from the Insights view, adds an Ad Gallery tab (search, format pills, Activity/Creative Mix/Top CTA widgets, Competitor Ad Share bar, ad grid), adds a Competitors tab (switcher pills, Competitive Landscape bars, Competitor Intelligence panel, clickable CTAs/Keywords tag clouds, Recent Ads grid), and renames the modal to 'Add Competitor' with an 'Add' button that only appends the competitor locally — the ads API runs only via the main 'Get Ads for Selected' button. Files changed: components/DashboardClient.tsx (tab state, top nav wiring, append-only add flow), components/TopNav.tsx (new), components/AdGallery.tsx (new), components/CompetitorIntel.tsx (new), components/AdsDashboard.tsx (Insights-only view), components/AddCompetitorModal.tsx (labels), lib/types.ts (additive DashboardTab/AdFormat types), prisma/schema.prisma (echoed, no column changes), app/not-found.tsx (canonical).
 
 **Repository:** `adscope-competitor-ad-analysis`  
-**File count:** 33
+**File count:** 36
 
 ## Features
 
-- Competitor discovery via Arena workflow API
-- Ads analysis workflow with intelligence dashboard
-- Competitor scorecards, heatmap, CTA arsenal, messaging themes and strategic signals
-- Sheet export of dashboard data
-- Arena email gating via middleware and provider
+- Top navigation bar with Insights / Ad Gallery / Competitors tabs
+- Insights tab: KPI cards, competitor scorecards, ad activity pulse heatmap, messaging themes, strategic signals
+- Ad Gallery tab: search, format pills (All/Image/Text/Video), Activity/Creative Mix/Top CTA widgets, Competitor Ad Share bar, ad creative grid
+- Competitors tab: competitor switcher pills, competitive landscape bars, intelligence panel, clickable CTA and keyword tag clouds, recent ads grid
+- Add Competitor modal appends locally; ads analysis runs only from the main Get Ads for Selected button
+- Sheet export and dataset sync from the top navigation
 
 ## Tech Stack
 
@@ -36,7 +37,6 @@ AdScope discovers competitors for any domain and analyzes their ads across platf
 
 ## Database Models
 
-- `AppSetting`
 - `AnalysisSession`
 - `SheetExport`
 
@@ -55,12 +55,15 @@ AdScope discovers competitors for any domain and analyzes their ads across platf
 ### Components
 
 - `components/AdCard.tsx`
+- `components/AdGallery.tsx`
 - `components/AddCompetitorModal.tsx`
 - `components/AdsDashboard.tsx`
+- `components/CompetitorIntel.tsx`
 - `components/CompetitorsTable.tsx`
 - `components/DashboardClient.tsx`
 - `components/Sidebar.tsx`
 - `components/Spinner.tsx`
+- `components/TopNav.tsx`
 - `components/arena-email-provider.tsx`
 
 ### Libraries
@@ -103,12 +106,15 @@ AdScope discovers competitors for any domain and analyzes their ads across platf
 - `app/not-found.tsx`
 - `app/page.tsx`
 - `components/AdCard.tsx`
+- `components/AdGallery.tsx`
 - `components/AddCompetitorModal.tsx`
 - `components/AdsDashboard.tsx`
+- `components/CompetitorIntel.tsx`
 - `components/CompetitorsTable.tsx`
 - `components/DashboardClient.tsx`
 - `components/Sidebar.tsx`
 - `components/Spinner.tsx`
+- `components/TopNav.tsx`
 - `components/arena-email-provider.tsx`
 - `lib/actions.ts`
 - `lib/arena-email-constants.ts`
@@ -128,29 +134,57 @@ AdScope discovers competitors for any domain and analyzes their ads across platf
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T11:19:49.175Z
-- **Request:** Fix ONLY the failing Vercel build by decoupling Prisma schema migration from the build step. The current build script runs `prisma generate && prisma db push && next build`. The `prisma db push` step keeps failing during Vercel deploys with `potential_dataloss` errors because the generated schema drifts from the live Neon database (it wants to drop columns/tables that still contain data). We do NOT want migrations to run during the build.
+- **Updated at:** 2026-08-24T11:55:22.902Z
+- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-Required change (Option C — remove db push from build):
+Changes to implement:
 
-1. In package.json, change the `build` script from:
+Top Navigation Restructuring (Move Left Nav to Top Nav):
 
-   "build": "prisma generate && prisma db push && next build"
+Move the navigation menu from the left sidebar to a clean Top Navigation Bar.
 
-   to:
+Completely remove "Ad Gallery" from inside the Insights section view.
 
-   "build": "prisma generate && next build"
+Section Architecture & Tab Views:
 
-   (Remove the `prisma db push` segment only. Keep `prisma generate` and `next build`.)
+Structure the application layout into clear top-level tabs/views based on the navigation selection:
 
-2. If there is any other script (e.g. `vercel-build`, `postinstall`, or a prebuild hook) that also runs `prisma db push`, remove the `prisma db push` invocation from those build/deploy scripts too, so no schema push runs automatically during a Vercel deployment.
+Insights Tab: Contains the macro market intelligence summary dashboard (top KPI summary cards, competitor scorecards, ad activity pulse heatmap, messaging themes, and strategic signals).
 
-3. Do NOT add --accept-data-loss anywhere. Do NOT drop any columns or tables. Do NOT modify prisma/schema.prisma. Do NOT delete data.
+Ad Gallery Tab: Contains the creative browsing suite featuring search/filter controls, format breakdown pills (All, Image, Text, Video), Activity/Creative Mix/Top CTA widgets, Competitor Ad Share bar, and the comprehensive searchable grid of ad creative cards.
+
+Competitors Tab: Contains deep competitor intel displaying:
+
+Competitor switcher pills ("All Competitors", individual competitor tabs).
+
+Competitive Landscape ad distribution bars.
+
+Competitor Intelligence panel: About section, Value Proposition, Pricing Model, Target Audience, and Messaging Angles list.
+
+CTAs Used block: Interactive tag cloud of calls-to-action ("Click to find in gallery").
+
+Keywords block: Interactive tag cloud of targeted keywords/search terms ("Click to search gallery").
+
+Recent Ads grid specific to the selected competitor.
+
+"Add Competitor" Modal Renaming & Workflow Behavior:
+
+Change the modal header and button labels from "Add Extra Competitor" to "Add Competitor".
+
+Change the primary action button inside the modal from "Analyze" / "Add & Analyze" to "Add".
+
+Behavior: Clicking "Add" inside the modal must only append the manually entered competitor domain to the competitor list in the main UI without triggering the API immediately.
+
+The API execution call and Postgres DB analysis fetch should only be triggered when the user selects competitors and hits the main "Analyze" / "Get Ads for Selected" button on the main UI table.
 
 Constraints:
-- Touch ONLY package.json (and only the build/deploy script lines described above).
-- Do not modify, refactor, remove, or reformat any dependency, other script, model, field, file, or code.
-- Preserve all existing formatting, naming, comments, and logic everywhere else.
-- Do not add features, optimizations, or unrelated changes.
 
-After implementing, list exactly which file and lines were changed and why, and show the before/after of the build script.
+Only touch the files/functions directly related to the points above.
+
+Do not change variable names, code style, or structure outside the scope of these changes.
+
+Do not add extra features, optimizations, or refactors that weren't requested.
+
+If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
+
+After implementing, list exactly which files and lines were changed, and why.
