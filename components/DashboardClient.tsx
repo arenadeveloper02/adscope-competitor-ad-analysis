@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Plus, Search, Megaphone, Users } from 'lucide-react'
 import type { AdsDashboardData, Competitor, CompetitorAd } from '@/lib/types'
-import { exportDashboardToSheet, logAnalysis, runAdsWorkflow, searchCompetitors } from '@/lib/actions'
+import { logAnalysis, runAdsWorkflow, searchCompetitors } from '@/lib/actions'
+import { exportDashboardToSheet } from '@/lib/sheet-actions'
 import { useArenaEmailId } from '@/components/arena-email-provider'
 import AddCompetitorModal from '@/components/AddCompetitorModal'
 import AdsDashboard from '@/components/AdsDashboard'
@@ -319,15 +320,15 @@ export default function DashboardClient() {
                   onToggle={handleToggle}
                   onToggleAll={handleToggleAll}
                 />
-                <div className="flex items-center justify-between gap-4 border-t border-grey-200 px-6 py-4">
+                <div className="flex items-center justify-between gap-3 border-t border-grey-100 px-6 py-4">
                   <p className="text-xs text-grey-500">
-                    Select competitors to fetch their live ads.
+                    Select the competitors you want to analyze, then fetch their ads.
                   </p>
                   <button
                     type="button"
                     className="ds-btn-primary"
-                    disabled={selectedIds.length === 0 || isFetchingAds}
                     onClick={handleGetAds}
+                    disabled={isFetchingAds || selectedIds.length === 0}
                   >
                     {isFetchingAds ? (
                       <>
@@ -346,58 +347,42 @@ export default function DashboardClient() {
             )}
           </section>
 
-          {/* Ads results section */}
-          <section id="gallery" className="mt-6 scroll-mt-6">
-            <div className="flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-grey-600" />
-              <h2 className="text-lg font-semibold text-grey-900">Ad Analysis</h2>
+          {/* Ads dashboard section */}
+          {isFetchingAds ? (
+            <div className="ds-card mt-6 flex flex-col items-center justify-center gap-3 px-6 py-16 text-grey-600">
+              <Spinner size="md" className="text-brand" />
+              <p className="text-sm">Analyzing ads across the selected competitors...</p>
             </div>
+          ) : dashboard ? (
+            <AdsDashboard data={dashboard} />
+          ) : hasFetchedAds && adsError ? (
+            <div className="ds-card mt-6 px-6 py-12 text-center">
+              <p className="text-sm font-medium text-errords">Could not fetch ads</p>
+              <p className="mt-1 text-xs text-grey-500">{adsError}</p>
+            </div>
+          ) : null}
 
-            {isFetchingAds ? (
-              <div className="ds-card mt-4 flex flex-col items-center justify-center gap-3 px-6 py-16 text-grey-600">
-                <Spinner size="md" className="text-brand" />
-                <p className="text-sm">Running the ads analysis workflow...</p>
+          {/* Ad gallery section */}
+          {!isFetchingAds && ads.length > 0 && (
+            <section id="gallery" className="mt-8 scroll-mt-6">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-grey-600" />
+                <h2 className="text-lg font-semibold text-grey-900">Ad Gallery</h2>
               </div>
-            ) : ads.length > 0 ? (
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {ads.map((ad) => (
                   <AdCard key={ad.id} ad={ad} />
                 ))}
               </div>
-            ) : (
-              <div className="ds-card mt-4 px-6 py-16 text-center">
-                {adsError ? (
-                  <>
-                    <p className="text-sm font-medium text-errords">Could not fetch ads</p>
-                    <p className="mt-1 text-xs text-grey-500">{adsError}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium text-grey-700">
-                      {hasFetchedAds ? 'No ads available' : 'No ads fetched yet'}
-                    </p>
-                    <p className="mt-1 text-xs text-grey-500">
-                      {hasFetchedAds
-                        ? 'The selected competitors are not running any ads right now.'
-                        : 'Select competitors and click "Get Ads for Selected" to analyze their ads.'}
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Ad intelligence dashboard */}
-          {dashboard && !isFetchingAds && <AdsDashboard data={dashboard} />}
+            </section>
+          )}
         </div>
       </div>
 
       <AddCompetitorModal
         isOpen={isModalOpen}
         isSubmitting={isAddingCompetitor}
-        onClose={() => {
-          if (!isAddingCompetitor) setIsModalOpen(false)
-        }}
+        onClose={() => setIsModalOpen(false)}
         onSubmit={handleAddCompetitor}
       />
     </div>

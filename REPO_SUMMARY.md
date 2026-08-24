@@ -1,22 +1,20 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T10:39:52.583Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T10:59:13.957Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. Changes: components/Sidebar.tsx (NEW fixed left nav with logo/title, 5 nav items, dynamic company + selected competitors, Sync & Sheet footer actions); components/DashboardClient.tsx (renders sidebar, section anchors, sync/sheet handlers, modal-triggered re-analysis rebuilds dashboard); components/AdsDashboard.tsx (self-company scorecard rendered first with YOU badge, dynamic 7-day/30-day/monthly heatmap labels, section ids); components/AddCompetitorModal.tsx (dimmed overlay polish, button renamed Analyze); lib/actions.ts (fixed toCompetitor domain mapping to use per-competitor landing_page_url/domain instead of the searched company_domain_url, added date parsing + dynamic heatmap bucketing, self-first dashboard build, new exportDashboardToSheet action persisting exports to Postgres); lib/types.ts (additive isSelf/heatmapLabels fields); prisma/schema.prisma (additive SheetExport model, AnalysisSession untouched).
+Competitor ad intelligence dashboard: discover competitors for any domain, analyze their ads via AI workflows, and explore scorecards, heatmaps, and creative insights.
 
 **Repository:** `adscope-competitor-ad-analysis`  
-**File count:** 32
+**File count:** 33
 
 ## Features
 
-- Fixed left navigation sidebar with Insights/Overview/Ad Gallery/Competitors/Creative Analysis
-- Dynamic company + selected competitors display in sidebar
-- Sync and Sheet (spreadsheet storage export) footer actions
-- Self-company shown first in scorecards
-- Add Extra Competitor modal triggers workflow and rebuilds dashboard
-- Per-competitor domain fix in competitors table data
+- Fixed left navigation sidebar with Sync and Sheet export actions
+- Self-company-first scorecards and metric grids
+- Add Extra Competitor modal with automatic AI workflow analysis
+- Correct per-competitor domain column in the competitors table
 - Dynamic 7-day / 30-day / monthly Ad Activity Pulse heatmap
 
 ## Tech Stack
@@ -71,6 +69,7 @@ AdScope — Competitor Ad Analysis. Changes: components/Sidebar.tsx (NEW fixed l
 - `lib/arena-email.ts`
 - `lib/mock-api.ts`
 - `lib/prisma.ts`
+- `lib/sheet-actions.ts`
 - `lib/types.ts`
 - `prisma/schema.prisma`
 
@@ -115,6 +114,7 @@ AdScope — Competitor Ad Analysis. Changes: components/Sidebar.tsx (NEW fixed l
 - `lib/arena-email.ts`
 - `lib/mock-api.ts`
 - `lib/prisma.ts`
+- `lib/sheet-actions.ts`
 - `lib/types.ts`
 - `middleware.ts`
 - `next-env.d.ts`
@@ -127,7 +127,7 @@ AdScope — Competitor Ad Analysis. Changes: components/Sidebar.tsx (NEW fixed l
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T10:39:52.583Z
+- **Updated at:** 2026-08-24T10:59:13.957Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
