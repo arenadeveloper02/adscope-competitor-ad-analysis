@@ -1,23 +1,21 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T08:06:46.954Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T08:11:57.761Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. Edit: replaced the mock competitor search with a real server-side POST to the Arena workflow API (new searchCompetitors server action in lib/actions.ts), added CompetitorSearchResult type in lib/types.ts, and updated components/DashboardClient.tsx handleListCompetitors to call the API with loading state and friendly error display. Manual competitor add, checkbox selection, and mock ad fetching are preserved untouched. prisma/schema.prisma echoed unchanged.
+AdScope — Competitor Ad Analysis. Fix: restored the `updatedAt DateTime @updatedAt` field on the AnalysisSession model in prisma/schema.prisma (placed next to createdAt) so the schema matches the live Neon database column and `prisma db push` no longer attempts a data-loss column drop. No other files, models, fields, or scripts were changed.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 30
 
 ## Features
 
-- Real API competitor search via Arena workflow endpoint (server action, dynamic company_domain_url payload)
-- Robust response parsing with match-score fallback when the API omits scores
-- Loading indicators and friendly error messages for failed or empty API results
-- Manual 'Add Extra Competitor' modal flow preserved
-- Checkbox single/multi/select-all competitor selection preserved
-- 'Get Ads for Selected' mock ad analysis and ad cards preserved
+- Competitor discovery for any domain via Arena workflow API
 - Analysis session logging to Neon Postgres via Prisma
+- Competitor ads dashboard with add-competitor modal
+- Arena email gating with access-denied page
+- Arena Design System UI with Poppins and DS tokens
 
 ## Tech Stack
 
@@ -122,47 +120,24 @@ AdScope — Competitor Ad Analysis. Edit: replaced the mock competitor search wi
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T08:06:46.954Z
-- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+- **Updated at:** 2026-08-24T08:11:57.761Z
+- **Request:** Fix ONLY the failing Vercel build caused by Prisma. The build script runs `prisma generate && prisma db push && next build` and `prisma db push` fails because the schema no longer declares the `updatedAt` column on the `AnalysisSession` model, but that column still exists in the Neon database with data. Prisma refuses to drop it without --accept-data-loss, so the build exits with code 1.
 
-Changes to implement:
+Required change (restore the column, no data loss):
 
-API Integration for Competitor Search: Replace the mock fetchCompetitors function with an actual HTTP POST request to the following API endpoint when the user submits a domain URL:
+1. In prisma/schema.prisma, on the `AnalysisSession` model, add back the `updatedAt` field so the schema matches the live database:
 
-Endpoint: [https://agent.thearena.ai/api/workflows/a5a9fda5-1a2d-4c60-b818-82897efae436/execute](https://agent.thearena.ai/api/workflows/a5a9fda5-1a2d-4c60-b818-82897efae436/execute)
+   updatedAt DateTime @updatedAt
 
-Method: POST
+   Place it consistent with the model's existing timestamp fields (e.g. next to createdAt). If a `createdAt` field exists, mirror its style. Ensure the model still has an @updatedAt-managed updatedAt column.
 
-Headers:
-
-X-API-Key: sk-sim-vTPTbbRj94Pf9YjOyjNthKyXig5NLD1F
-
-Content-Type: application/json
-
-Cookie: AWSALB=0pW9//ob33hd6Jof2VVkLLwdUtYN1S9n26EosfsQO/Oamm/3cvT7oYM/lNmjMQEW8AMMSrni2GEDsGNsw+AlBU7SogaKDwLqJFp1XL1qR2/rgI00jyQsTU2ft499; AWSALBCORS=0pW9//ob33hd6Jof2VVkLLwdUtYN1S9n26EosfsQO/Oamm/3cvT7oYM/lNmjMQEW8AMMSrni2GEDsGNsw+AlBU7SogaKDwLqJFp1XL1qR2/rgI00jyQsTU2ft499
-
-Dynamic Request Body: Pass the user-entered domain URL dynamically into the payload body in the format: {"company_domain_url": "<domain_input>"}.
-
-Response Parsing & Table Rendering: Parse the array/data returned by the API response and map it to populate the Competitors Table with fields for Selection Checkbox, Competitor Name, Competitor Domain, and Match Score/Relevance (fall back to a calculated/mock score if omitted by the API).
-
-State & Error Handling: Ensure proper loading state indicators (isFetchingCompetitors) while the API call is in progress, along with error handling to display friendly messages if the API request fails or returns an empty result set.
-
-Preserve Surrounding Workflows: Maintain the full capability for:
-
-"Add Extra Competitor" CTA/Modal: Allowing manual competitor additions and appending them to the table.
-
-Competitor Selection: Checkbox state management allowing single, multiple, or select-all options.
-
-Ad Analysis Trigger: The "Get Ads for Selected" button logic triggering the mock fetchCompetitorAds call and rendering ad cards below.
+2. Do NOT add --accept-data-loss anywhere. Do NOT remove `prisma db push` from the build script. Do NOT drop any columns.
 
 Constraints:
+- Touch ONLY prisma/schema.prisma (and only the AnalysisSession model / updatedAt field within it).
+- Do not modify, refactor, remove, or reformat any other model, field, file, or code.
+- Preserve all existing formatting, naming, comments, and logic everywhere else.
+- Do not add features, optimizations, or unrelated changes.
+- Never remove `updatedAt` from any Prisma model.
 
-Only touch the files/functions directly related to the points above.
-
-Do not change variable names, code style, or structure outside the scope of these changes.
-
-Do not add extra features, optimizations, or refactors that weren't requested.
-
-If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
-
-After implementing, list exactly which files and lines were changed, and why.
+After implementing, list exactly which file and lines were changed and why.
