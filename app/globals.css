@@ -1,0 +1,98 @@
+@import './arena-ds-tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: var(--ds-surface-subtle);
+  color: var(--ds-text-primary);
+}
+
+.ds-card {
+  background-color: var(--ds-surface-page);
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-elevation-sm);
+}
+
+.ds-input {
+  height: 40px;
+  width: 100%;
+  border: 1px solid var(--ds-border-default);
+  border-radius: var(--ds-radius-md);
+  padding: 8px 16px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--ds-text-primary);
+  background-color: var(--ds-surface-page);
+  transition: border-color var(--ds-motion-fast) var(--ds-ease-standard),
+    box-shadow var(--ds-motion-fast) var(--ds-ease-standard);
+}
+
+.ds-input::placeholder {
+  color: var(--ds-text-placeholder);
+}
+
+.ds-input:focus {
+  outline: none;
+  border-color: var(--ds-border-focus);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.3);
+}
+
+.ds-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-brand-default);
+  color: var(--ds-text-inverse);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  transition: background-color var(--ds-motion-fast) var(--ds-ease-standard);
+  white-space: nowrap;
+}
+
+.ds-btn-primary:hover:not(:disabled) {
+  background-color: var(--ds-brand-hover);
+}
+
+.ds-btn-primary:active:not(:disabled) {
+  background-color: var(--ds-brand-pressed);
+}
+
+.ds-btn-primary:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.ds-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--ds-radius-md);
+  background-color: var(--ds-surface-page);
+  border: 1px solid var(--ds-border-default);
+  color: var(--ds-text-secondary);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  transition: background-color var(--ds-motion-fast) var(--ds-ease-standard);
+  white-space: nowrap;
+}
+
+.ds-btn-secondary:hover:not(:disabled) {
+  background-color: var(--ds-surface-subtle);
+}
+
+.ds-btn-secondary:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
