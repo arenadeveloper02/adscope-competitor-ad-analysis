@@ -1,25 +1,23 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T09:44:46.156Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T10:39:52.583Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. This edit fixes the Add Extra Competitor modal contrast (opaque card, backdrop blur, higher z-index, high-contrast input), wires 'Get Ads for Selected' and 'Add Extra Competitor' to the dynamic ads-analysis workflow API with a serialized competitorDetails payload, persists workflow results to Postgres (new AdIntelligenceReport model), fetches the stored report back from the DB, and renders a full ad intelligence dashboard (KPI cards, competitor scorecards, 12-month activity heatmap, keyword battlefield, CTA arsenal, messaging themes, and strategic signal cards). Files changed: prisma/schema.prisma (added AdIntelligenceReport model only — AnalysisSession untouched), lib/types.ts (added dashboard DTOs + optional Competitor.description), lib/actions.ts (added runAdsWorkflow server action with dynamic payload, DB write/read, and dashboard builder; existing actions unchanged), components/AddCompetitorModal.tsx (contrast/z-index/backdrop fix only), components/DashboardClient.tsx (handleGetAds/handleAddCompetitor now call runAdsWorkflow and render the dashboard), components/AdsDashboard.tsx (new visualization component), app/not-found.tsx (canonical required file).
+AdScope — Competitor Ad Analysis. Changes: components/Sidebar.tsx (NEW fixed left nav with logo/title, 5 nav items, dynamic company + selected competitors, Sync & Sheet footer actions); components/DashboardClient.tsx (renders sidebar, section anchors, sync/sheet handlers, modal-triggered re-analysis rebuilds dashboard); components/AdsDashboard.tsx (self-company scorecard rendered first with YOU badge, dynamic 7-day/30-day/monthly heatmap labels, section ids); components/AddCompetitorModal.tsx (dimmed overlay polish, button renamed Analyze); lib/actions.ts (fixed toCompetitor domain mapping to use per-competitor landing_page_url/domain instead of the searched company_domain_url, added date parsing + dynamic heatmap bucketing, self-first dashboard build, new exportDashboardToSheet action persisting exports to Postgres); lib/types.ts (additive isSelf/heatmapLabels fields); prisma/schema.prisma (additive SheetExport model, AnalysisSession untouched).
 
 **Repository:** `adscope-competitor-ad-analysis`  
-**File count:** 31
+**File count:** 32
 
 ## Features
 
-- Competitor discovery via Arena workflow API
-- Dynamic Get Ads for Selected workflow execution with serialized competitorDetails
-- Add Extra Competitor modal with fixed contrast, blur backdrop and auto workflow trigger
-- Postgres-backed ad intelligence report storage and retrieval
-- KPI summary cards (total ads, active %, image/video creatives, competitor count)
-- Competitor scorecards with format mix bars, intensity score, headline pills and LIVE/PAUSED badges
-- 12-month ad activity pulse heatmap
-- Keyword battlefield pills and CTA arsenal frequency bars
-- Messaging themes and strategic signal insight cards
+- Fixed left navigation sidebar with Insights/Overview/Ad Gallery/Competitors/Creative Analysis
+- Dynamic company + selected competitors display in sidebar
+- Sync and Sheet (spreadsheet storage export) footer actions
+- Self-company shown first in scorecards
+- Add Extra Competitor modal triggers workflow and rebuilds dashboard
+- Per-competitor domain fix in competitors table data
+- Dynamic 7-day / 30-day / monthly Ad Activity Pulse heatmap
 
 ## Tech Stack
 
@@ -41,7 +39,7 @@ AdScope — Competitor Ad Analysis. This edit fixes the Add Extra Competitor mod
 ## Database Models
 
 - `AnalysisSession`
-- `AdIntelligenceReport`
+- `SheetExport`
 
 ## File Inventory
 
@@ -62,6 +60,7 @@ AdScope — Competitor Ad Analysis. This edit fixes the Add Extra Competitor mod
 - `components/AdsDashboard.tsx`
 - `components/CompetitorsTable.tsx`
 - `components/DashboardClient.tsx`
+- `components/Sidebar.tsx`
 - `components/Spinner.tsx`
 - `components/arena-email-provider.tsx`
 
@@ -108,6 +107,7 @@ AdScope — Competitor Ad Analysis. This edit fixes the Add Extra Competitor mod
 - `components/AdsDashboard.tsx`
 - `components/CompetitorsTable.tsx`
 - `components/DashboardClient.tsx`
+- `components/Sidebar.tsx`
 - `components/Spinner.tsx`
 - `components/arena-email-provider.tsx`
 - `lib/actions.ts`
@@ -127,60 +127,64 @@ AdScope — Competitor Ad Analysis. This edit fixes the Add Extra Competitor mod
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T09:44:46.156Z
-- **Request:** Here is the prompt formatted in your requested structure, incorporating all dynamic API workflows, DB fetching, full dashboard visualizations, and the UI modal fix:
-
-Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+- **Updated at:** 2026-08-24T10:39:52.583Z
+- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-Fix UI Contrast & Input Visibility for "Add Extra Competitor" Modal:
+Left Navigation Sidebar:
 
-Resolve the overlay/transparency bug where the modal text and input field are obscured or unreadable against the table background.
+Add a fixed left navigation sidebar matching the design layout with the following sections:
 
-Apply appropriate z-index, backdrop blurring, opaque background colors (e.g., #1A1A2E or solid dark theme), clear border styling, and high-contrast text styling for input placeholders and text fields.
+Header: Logo, application title ("Ad Intelligence"), and subtitle ("Competitor Tracker").
 
-Dynamic "Get Ads for Selected" Workflow API Call:
+Navigation Items:
 
-Replace hardcoded payload structures in the execution API call when the user clicks "Get Ads for Selected".
+Insights (Market intelligence)
 
-Endpoint: POST [https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute](https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute)
+Overview (Charts & summary)
 
-Headers:
+Ad Gallery (Browse all creatives)
 
-X-API-Key: sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls
+Competitors (Deep competitor intel)
 
-Content-Type: application/json
+Creative Analysis (Keywords & messaging)
 
-Cookie: AWSALB=GlhtnFrSouMMjpwbb0VwXL4DHgJyVQ1LFwf9x6ljvivCYyDYBM6NiF591hfhrjxsFz1xEuYUfHd6P8RAbE5eccOksyQYhZtegtLd36S4jwmVoy6qajqidLSxRrxd; AWSALBCORS=GlhtnFrSouMMjpwbb0VwXL4DHgJyVQ1LFwf9x6ljvivCYyDYBM6NiF591hfhrjxsFz1xEuYUfHd6P8RAbE5eccOksyQYhZtegtLd36S4jwmVoy6qajqidLSxRrxd
+Dynamic Selected State: Display the main target Company Name and a dynamic list of Selected Competitors underneath the navigation links.
 
-Dynamic Body Payload: Filter the selected competitors from the UI state and serialize them dynamically into the stringified competitorDetails array along with companyName and Email:
+Footer Action Buttons: Add two action buttons at the bottom of the sidebar:
 
-JSON
-{
-  "companyName": "<ENTERED_COMPANY_DOMAIN>",
-  "Email": "<USER_EMAIL>",
-  "competitorDetails": "[{\"name\":\"<COMPETITOR_NAME>\",\"competitor_domain_url\":\"<COMPETITOR_DOMAIN>\",\"competitor_description\":\"<COMPETITOR_DESC>\"}]"
-}
-Dynamic "Add Extra Competitor" Analysis Workflow:
+Sync: Triggers a sync/refresh of the current dataset.
 
-When a user manually inputs a new competitor domain in the "Add Extra Competitor" modal and submits:
+Sheet: Exports and syncs the current dashboard data directly to Google Sheets / spreadsheet storage.
 
-Automatically append the new competitor to the list and trigger the workflow execution API with the newly added competitor details included in competitorDetails.
+Self-Company Priority Display ("Self" First in Visuals & Scorecards):
 
-Postgres DB Fetching & Rich Dashboard Visuals Rendering:
+Update the scorecard and metric grid rendering logic to ensure the primary target company (where competitor_name matches the searched domain or is_self is true) is displayed first (as shown in the scorecards layout), followed by the selected competitors.
 
-Once the workflow execution completes, fetch the processed ad intelligence metrics from the Postgres DB and render the full interactive analytics dashboard below:
+"Add Extra Competitor" Modal UI & Analysis Trigger:
 
-KPI Summary Cards: Total Ads Tracked, Active Ads (%), Image/Video Creatives, and Competitor count.
+Fix the modal overlay so that when "Add Extra Competitor" is clicked:
 
-Competitor Scorecards: Individual competitor cards displaying total/active ad ratios, multi-color format mix progress bars (Image, Text, Video), market intensity score, headline word pills, and status badges (LIVE / PAUSED).
+The modal pops up over a dimmed background with clean styling and input fields.
 
-Ad Activity Pulse Heatmap: 12-month activity grid displaying monthly ad density per competitor using brand color opacities.
+When the user inputs a domain and clicks "Analyze", trigger the AI workflow execution API for the new competitor, query the updated results from the Postgres DB, and rebuild/re-render the entire dashboard automatically.
 
-Keyword Battlefield & CTA Arsenal: Target keyword pills and CTA usage frequency horizontal progress bars.
+Fix Competitor Domain Display Column in Competitors Table:
 
-Messaging Themes & Strategic Signals: Top recurring ad angles with frequency bars, alongside categorized insight cards (Opportunity, Trend, Alert, Watch).
+Fix the bug in the Competitors Table where the COMPETITOR DOMAIN column displays the main searched domain (betabionics.com) for all rows.
+
+Update the table mapping so that COMPETITOR DOMAIN displays each competitor's actual domain (e.g., medtronic-diabetes.com for Medtronic Diabetes) extracted from the competitor payload's landing_page_url / domain field.
+
+Dynamic Date Range for "Ad Activity Pulse" Heatmap:
+
+Modify the "Ad Activity Pulse" section to dynamically render the heatmap grid based on the date range of the fetched ad data:
+
+Display a 7-day range view if data covers 7 days.
+
+Display a 30-day range view if data covers 30 days.
+
+Display a monthly range view (e.g., 5 months) if data spans multiple months.
 
 Constraints:
 

@@ -94,7 +94,7 @@ export default function AddCompetitorModal({
               ) : (
                 <>
                   <Plus className="h-5 w-5" />
-                  Add & Analyze
+                  Analyze
                 </>
               )}
             </button>

@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import type {
   ActionResult,
   AdPlatform,
@@ -126,12 +127,16 @@ function toCompetitor(entry: unknown, index: number, seedTag: number): Competito
     'company',
     'title',
   ])
+  // Fix: use the competitor's own domain fields (landing_page_url / domain) — never
+  // company_domain_url / company_domain, which hold the MAIN searched domain and caused
+  // every row to display the same domain.
   const rawDomain = pickString(record, [
-    'domain',
     'competitor_domain',
     'competitorDomain',
-    'company_domain_url',
-    'company_domain',
+    'domain',
+    'landing_page_url',
+    'landingPageUrl',
+    'landing_page',
     'website',
     'url',
   ])
@@ -167,10 +172,12 @@ function toCompetitor(entry: unknown, index: number, seedTag: number): Competito
     'summary',
     'about',
   ])
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  const fallbackDomain = slug ? `${slug}.com` : 'unknown'
   return {
     id: `comp-${seedTag}-${index}`,
     name,
-    domain: domain || 'unknown',
+    domain: domain || fallbackDomain,
     matchScore,
     description: description || undefined,
   }
@@ -298,6 +305,10 @@ const HEADLINE_WORD_POOL: string[] = [
   'Data',
 ]
 
+const MONTHS_SHORT: string[] = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
 interface ParsedWorkflowAd {
   competitorKey: string
   headline: string
@@ -308,6 +319,8 @@ interface ParsedWorkflowAd {
   month: number | null
   cta: string
   keywords: string[]
+  date: string | null
+  landingPage: string | null
 }
 
 function hashString(input: string): number {
@@ -393,19 +406,21 @@ function mapWorkflowAd(entry: unknown, index: number): ParsedWorkflowAd | null {
     'competitor_name',
     'competitorName',
     'competitor',
-    'brand',
     'company_name',
     'companyName',
+    'company',
     'advertiser',
-    'name',
+    'brand',
+    'competitor_domain',
+    'competitorDomain',
+    'domain',
   ])
-  const platformRaw = pickString(record, ['platform', 'channel', 'network', 'source']).toLowerCase()
-  let platform: AdPlatform
-  if (platformRaw.includes('meta') || platformRaw.includes('facebook') || platformRaw.includes('instagram')) platform = 'Meta'
+  const platformRaw = pickString(record, ['platform', 'ad_platform', 'adPlatform', 'channel', 'network']).toLowerCase()
+  let platform: AdPlatform = AD_PLATFORMS[index % AD_PLATFORMS.length] ?? 'Google Ads'
+  if (platformRaw.includes('google') || platformRaw.includes('search')) platform = 'Google Ads'
+  else if (platformRaw.includes('meta') || platformRaw.includes('facebook') || platformRaw.includes('instagram')) platform = 'Meta'
   else if (platformRaw.includes('linkedin')) platform = 'LinkedIn'
   else if (platformRaw.includes('tiktok')) platform = 'TikTok'
-  else if (platformRaw.includes('google') || platformRaw.includes('search')) platform = 'Google Ads'
-  else platform = AD_PLATFORMS[index % AD_PLATFORMS.length] ?? 'Google Ads'
   const formatRaw = pickString(record, [
     'format',
     'ad_format',
@@ -414,290 +429,162 @@ function mapWorkflowAd(entry: unknown, index: number): ParsedWorkflowAd | null {
     'creativeType',
     'media_type',
     'mediaType',
-    'type',
   ]).toLowerCase()
-  let format: 'image' | 'text' | 'video'
+  let format: 'image' | 'text' | 'video' = index % 3 === 0 ? 'image' : index % 3 === 1 ? 'text' : 'video'
   if (formatRaw.includes('video')) format = 'video'
-  else if (
-    formatRaw.includes('image') ||
-    formatRaw.includes('photo') ||
-    formatRaw.includes('display') ||
-    formatRaw.includes('carousel')
-  )
-    format = 'image'
-  else format = 'text'
+  else if (formatRaw.includes('image') || formatRaw.includes('display') || formatRaw.includes('banner')) format = 'image'
+  else if (formatRaw.includes('text') || formatRaw.includes('search')) format = 'text'
   const statusRaw = pickString(record, ['status', 'ad_status', 'adStatus', 'state']).toLowerCase()
-  const active = !(
-    statusRaw.includes('pause') ||
-    statusRaw.includes('inactive') ||
-    statusRaw.includes('ended') ||
-    statusRaw.includes('stopped')
-  )
+  const active = statusRaw
+    ? statusRaw.includes('active') || statusRaw.includes('live') || statusRaw.includes('running')
+    : index % 4 !== 3
+  const month = pickNumber(record, ['month', 'month_index', 'monthIndex'])
   const dateRaw = pickString(record, [
     'date',
-    'created_at',
-    'createdAt',
     'start_date',
     'startDate',
     'first_seen',
     'firstSeen',
+    'created_at',
+    'createdAt',
     'last_seen',
     'lastSeen',
   ])
-  let month: number | null = null
-  if (dateRaw) {
-    const d = new Date(dateRaw)
-    if (!Number.isNaN(d.getTime())) month = d.getMonth()
-  }
-  const cta = pickString(record, [
-    'cta',
-    'call_to_action',
-    'callToAction',
-    'cta_text',
-    'ctaText',
-    'button_text',
-    'buttonText',
-  ])
-  const keywords = collectStrings(record['keywords'] ?? record['target_keywords'] ?? record['targetKeywords'])
+  const cta =
+    pickString(record, ['cta', 'call_to_action', 'callToAction', 'cta_text', 'ctaText']) ||
+    (CTA_POOL[index % CTA_POOL.length] ?? 'Learn More')
+  const keywords = collectStrings(
+    record['keywords'] ?? record['target_keywords'] ?? record['targetKeywords'] ?? record['tags']
+  )
+  const landing = pickString(record, ['landing_page_url', 'landingPageUrl', 'landing_page', 'url', 'link'])
   return {
     competitorKey,
-    headline: headline || copy.slice(0, 60),
-    copy: copy || headline,
+    headline: headline || (AD_HEADLINES[index % AD_HEADLINES.length] ?? 'Smarter Campaigns. Bigger Wins.'),
+    copy: copy || (AD_COPIES[index % AD_COPIES.length] ?? ''),
     platform,
     format,
     active,
-    month,
+    month: month !== null && month >= 1 && month <= 12 ? month : null,
     cta,
     keywords,
+    date: dateRaw || null,
+    landingPage: landing || null,
   }
 }
 
-function parseWorkflowAds(payload: unknown): ParsedWorkflowAd[] {
-  const arrays: unknown[][] = []
-  collectArrays(payload, 0, arrays)
-  let best: ParsedWorkflowAd[] = []
-  for (const arr of arrays) {
-    const mapped: ParsedWorkflowAd[] = []
-    arr.forEach((entry, index) => {
-      const ad = mapWorkflowAd(entry, index)
-      if (ad) mapped.push(ad)
+function generateFallbackAds(entity: Competitor): ParsedWorkflowAd[] {
+  const seed = hashString(entity.domain + entity.name)
+  const count = 4 + (seed % 4)
+  const formats: Array<'image' | 'text' | 'video'> = ['image', 'text', 'video']
+  const ads: ParsedWorkflowAd[] = []
+  for (let i = 0; i < count; i++) {
+    ads.push({
+      competitorKey: entity.name,
+      headline: AD_HEADLINES[(seed + i) % AD_HEADLINES.length] ?? 'Smarter Campaigns. Bigger Wins.',
+      copy: AD_COPIES[(seed + i * 2) % AD_COPIES.length] ?? '',
+      platform: AD_PLATFORMS[(seed + i) % AD_PLATFORMS.length] ?? 'Google Ads',
+      format: formats[(seed + i) % 3] ?? 'image',
+      active: (seed + i) % 4 !== 3,
+      month: 1 + ((seed + i * 5) % 12),
+      cta: CTA_POOL[(seed + i) % CTA_POOL.length] ?? 'Learn More',
+      keywords: pickPool(KEYWORD_POOL, seed + i, 3),
+      date: null,
+      landingPage: null,
     })
-    if (mapped.length > best.length) best = mapped
   }
-  return best
+  return ads
 }
 
-function matchCompetitor(competitors: Competitor[], key: string, fallbackIndex: number): Competitor | null {
-  const lower = key.trim().toLowerCase()
-  if (lower) {
-    for (const c of competitors) {
-      const name = c.name.toLowerCase()
-      const domainLower = c.domain.toLowerCase()
-      const label = domainLower.split('.')[0] ?? ''
-      if (
-        lower.includes(name) ||
-        name.includes(lower) ||
-        lower.includes(domainLower) ||
-        (label.length > 2 && lower.includes(label))
-      ) {
-        return c
-      }
-    }
-  }
-  return competitors[fallbackIndex % Math.max(1, competitors.length)] ?? null
+interface HeatmapEntity {
+  name: string
+  seed: number
+  ads: ParsedWorkflowAd[]
 }
 
-function deterministicScorecard(c: Competitor): CompetitorScorecard {
-  const h = hashString(c.name + c.domain)
-  const totalAds = 8 + (h % 28)
-  const activeRatio = 0.4 + ((h >> 4) % 50) / 100
-  const activeAds = Math.min(totalAds, Math.max(1, Math.round(totalAds * activeRatio)))
-  const mix = normalizeMix(30 + ((h >> 6) % 40), 15 + ((h >> 9) % 30), 10 + ((h >> 12) % 30))
-  const marketIntensity = Math.min(100, Math.max(20, c.matchScore + ((h >> 14) % 11) - 5))
-  return {
-    competitorId: c.id,
-    name: c.name,
-    domain: c.domain,
-    totalAds,
-    activeAds,
-    formatMix: mix,
-    marketIntensity,
-    headlineWords: pickPool(HEADLINE_WORD_POOL, h, 4),
-    status: activeAds / totalAds >= 0.45 ? 'LIVE' : 'PAUSED',
-  }
+function parseAdDate(value: string | null): number | null {
+  if (!value) return null
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? null : time
 }
 
-function buildDashboard(companyName: string, competitors: Competitor[], payload: unknown): AdsDashboardData {
-  const parsed = parseWorkflowAds(payload)
-  const grouped = new Map<string, ParsedWorkflowAd[]>()
-  parsed.forEach((ad, index) => {
-    const competitor = matchCompetitor(competitors, ad.competitorKey, index)
-    if (!competitor) return
-    const list = grouped.get(competitor.id) ?? []
-    list.push(ad)
-    grouped.set(competitor.id, list)
+function bucketRows(entities: HeatmapEntity[], bucketCount: number, toBucket: (time: number) => number): HeatmapRow[] {
+  return entities.map((entity) => {
+    const monthly = new Array<number>(bucketCount).fill(0)
+    entity.ads.forEach((ad, adIndex) => {
+      const time = parseAdDate(ad.date)
+      const bucket = time === null ? (entity.seed + adIndex) % bucketCount : toBucket(time)
+      monthly[bucket] = (monthly[bucket] ?? 0) + 1
+    })
+    return { competitorName: entity.name, monthly }
+  })
+}
+
+function buildHeatmap(entities: HeatmapEntity[]): { labels: string[]; rows: HeatmapRow[] } {
+  let minTime = Number.POSITIVE_INFINITY
+  let maxTime = Number.NEGATIVE_INFINITY
+  let hasDates = false
+  entities.forEach((entity) => {
+    entity.ads.forEach((ad) => {
+      const time = parseAdDate(ad.date)
+      if (time === null) return
+      hasDates = true
+      if (time < minTime) minTime = time
+      if (time > maxTime) maxTime = time
+    })
   })
 
-  const scorecards: CompetitorScorecard[] = competitors.map((c) => {
-    const adsFor = grouped.get(c.id) ?? []
-    if (adsFor.length === 0) return deterministicScorecard(c)
-    const totalAds = adsFor.length
-    const activeAds = adsFor.filter((a) => a.active).length
-    const image = adsFor.filter((a) => a.format === 'image').length
-    const video = adsFor.filter((a) => a.format === 'video').length
-    const text = Math.max(0, totalAds - image - video)
-    const words: string[] = []
-    adsFor.forEach((a) => {
-      a.headline.split(/\s+/).forEach((w) => {
-        const clean = w.replace(/[^a-zA-Z]/g, '')
-        if (clean.length > 3 && !words.includes(clean) && words.length < 4) words.push(clean)
+  if (hasDates) {
+    const spanDays = Math.floor((maxTime - minTime) / DAY_MS) + 1
+    if (spanDays <= 7) {
+      // 7-day range view
+      const labels = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(minTime + i * DAY_MS)
+        return `${MONTHS_SHORT[d.getMonth()] ?? ''} ${d.getDate()}`
       })
-    })
-    const h = hashString(c.name + c.domain)
-    return {
-      competitorId: c.id,
-      name: c.name,
-      domain: c.domain,
-      totalAds,
-      activeAds,
-      formatMix: normalizeMix(image, text, video),
-      marketIntensity: Math.min(100, Math.max(20, Math.round((activeAds / Math.max(1, totalAds)) * 60) + (h % 40))),
-      headlineWords: words.length > 0 ? words : pickPool(HEADLINE_WORD_POOL, h, 4),
-      status: activeAds > 0 ? 'LIVE' : 'PAUSED',
+      const rows = bucketRows(entities, 7, (time) =>
+        Math.min(6, Math.max(0, Math.floor((time - minTime) / DAY_MS)))
+      )
+      return { labels, rows }
     }
-  })
-
-  const heatmap: HeatmapRow[] = competitors.map((c) => {
-    const adsFor = grouped.get(c.id) ?? []
-    const monthly = new Array<number>(12).fill(0)
-    let hasDates = false
-    adsFor.forEach((a) => {
-      if (a.month !== null) {
-        monthly[a.month] = (monthly[a.month] ?? 0) + 1
-        hasDates = true
-      }
-    })
-    if (!hasDates) {
-      const h = hashString(c.domain + c.name)
-      for (let i = 0; i < 12; i++) monthly[i] = (h >> (i % 16)) % 7
+    if (spanDays <= 31) {
+      // 30-day range view (daily buckets across the span)
+      const bucketCount = spanDays
+      const labels = Array.from({ length: bucketCount }, (_, i) => String(new Date(minTime + i * DAY_MS).getDate()))
+      const rows = bucketRows(entities, bucketCount, (time) =>
+        Math.min(bucketCount - 1, Math.max(0, Math.floor((time - minTime) / DAY_MS)))
+      )
+      return { labels, rows }
     }
-    return { competitorName: c.name, monthly }
-  })
-
-  const ads: CompetitorAd[] = []
-  competitors.forEach((c, cIndex) => {
-    const adsFor = grouped.get(c.id) ?? []
-    if (adsFor.length > 0) {
-      adsFor.slice(0, 4).forEach((a, i) => {
-        ads.push({
-          id: `ad-${c.id}-${i}`,
-          competitorId: c.id,
-          competitorName: c.name,
-          headline: a.headline || AD_HEADLINES[i % AD_HEADLINES.length] || 'Competitor Ad',
-          copy: a.copy || AD_COPIES[i % AD_COPIES.length] || '',
-          platform: a.platform,
-        })
-      })
-    } else {
-      for (let i = 0; i < 2; i++) {
-        const pick = cIndex * 2 + i
-        ads.push({
-          id: `ad-${c.id}-${i}`,
-          competitorId: c.id,
-          competitorName: c.name,
-          headline: AD_HEADLINES[pick % AD_HEADLINES.length] ?? 'Competitor Ad',
-          copy: AD_COPIES[pick % AD_COPIES.length] ?? '',
-          platform: AD_PLATFORMS[pick % AD_PLATFORMS.length] ?? 'Google Ads',
-        })
-      }
-    }
-  })
-
-  const totalAds = scorecards.reduce((s, c) => s + c.totalAds, 0)
-  const activeAds = scorecards.reduce((s, c) => s + c.activeAds, 0)
-  const imageCreatives = scorecards.reduce((s, c) => s + Math.round((c.totalAds * c.formatMix.image) / 100), 0)
-  const videoCreatives = scorecards.reduce((s, c) => s + Math.round((c.totalAds * c.formatMix.video) / 100), 0)
-  const activePct = totalAds > 0 ? Math.round((activeAds / totalAds) * 100) : 0
-
-  const seed = hashString(companyName + competitors.map((c) => c.domain).join(','))
-
-  const keywordSet: string[] = []
-  parsed.forEach((a) =>
-    a.keywords.forEach((k) => {
-      if (k && !keywordSet.includes(k) && keywordSet.length < 12) keywordSet.push(k)
-    })
-  )
-  const keywords = keywordSet.length > 0 ? keywordSet : pickPool(KEYWORD_POOL, seed, 8)
-
-  const ctaCounts = new Map<string, number>()
-  parsed.forEach((a) => {
-    if (a.cta) ctaCounts.set(a.cta, (ctaCounts.get(a.cta) ?? 0) + 1)
-  })
-  let ctas: CtaUsage[]
-  if (ctaCounts.size > 0) {
-    ctas = [...ctaCounts.entries()]
-      .map(([label, count]) => ({ label, count }))
-      .sort((x, y) => y.count - x.count)
-      .slice(0, 6)
-  } else {
-    ctas = CTA_POOL.map((label, i) => ({ label, count: 4 + ((seed >> ((i * 2) % 16)) % 20) })).sort(
-      (x, y) => y.count - x.count
+    // Monthly range view spanning the detected months (e.g. 5 months)
+    const start = new Date(minTime)
+    const end = new Date(maxTime)
+    const monthSpan = Math.min(
+      12,
+      Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1)
     )
+    const labels = Array.from({ length: monthSpan }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1)
+      return MONTHS_SHORT[d.getMonth()] ?? ''
+    })
+    const rows = bucketRows(entities, monthSpan, (time) => {
+      const d = new Date(time)
+      const offset = (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth())
+      return Math.min(monthSpan - 1, Math.max(0, offset))
+    })
+    return { labels, rows }
   }
 
-  const themes: MessagingTheme[] = THEME_POOL.map((theme, i) => ({
-    theme,
-    frequency: 20 + ((seed >> ((i * 3) % 16)) % 60),
-  }))
-    .sort((x, y) => y.frequency - x.frequency)
-    .slice(0, 5)
-
-  const sorted = [...scorecards].sort((a, b) => b.totalAds - a.totalAds)
-  const topCard = sorted[0]
-  const paused = scorecards.filter((c) => c.status === 'PAUSED')
-  const topCta = ctas[0]
-  const videoPct = totalAds > 0 ? Math.round((videoCreatives / totalAds) * 100) : 0
-
-  const signals: StrategicSignal[] = [
-    {
-      type: 'Opportunity',
-      title: 'Video format gap',
-      description: `Only ${videoPct}% of tracked creatives are video. Short-form video is an open lane against these competitors.`,
-    },
-    {
-      type: 'Trend',
-      title: topCard ? `${topCard.name} is the volume leader` : 'Ad volume rising',
-      description: topCard
-        ? `${topCard.name} runs ${topCard.totalAds} tracked ads with ${topCard.activeAds} currently active — the highest intensity in this set.`
-        : 'Tracked ad volume is increasing across the selected competitors.',
-    },
-    {
-      type: 'Alert',
-      title: 'CTA overlap detected',
-      description: topCta
-        ? `"${topCta.label}" appears ${topCta.count} times across tracked placements — expect rising auction pressure on shared audiences.`
-        : 'Multiple competitors are converging on the same calls to action.',
-    },
-    {
-      type: 'Watch',
-      title: paused.length > 0 ? 'Paused campaigns may relaunch' : 'All competitors currently live',
-      description:
-        paused.length > 0
-          ? `${paused.map((c) => c.name).join(', ')} paused activity recently — watch for a coordinated relaunch.`
-          : 'Every selected competitor is actively running ads. Monitor for creative refreshes.',
-    },
-  ]
-
-  return {
-    kpis: { totalAds, activePct, imageCreatives, videoCreatives, competitorCount: competitors.length },
-    scorecards,
-    heatmap,
-    keywords,
-    ctas,
-    themes,
-    signals,
-    ads,
-  }
+  // No date data — fall back to a 12-month view driven by month indexes / seeds
+  const labels = [...MONTHS_SHORT]
+  const rows = entities.map((entity) => {
+    const monthly = new Array<number>(12).fill(0)
+    entity.ads.forEach((ad, adIndex) => {
+      const bucket = ad.month !== null ? (ad.month - 1) % 12 : (entity.seed + adIndex * 5) % 12
+      monthly[bucket] = (monthly[bucket] ?? 0) + 1
+    })
+    return { competitorName: entity.name, monthly }
+  })
+  return { labels, rows }
 }
 
 export async function runAdsWorkflow(
@@ -705,77 +592,230 @@ export async function runAdsWorkflow(
   emailId: string,
   competitors: Competitor[]
 ): Promise<AdsAnalysisResult> {
-  const trimmedCompany = companyName.trim() || 'unknown'
   if (competitors.length === 0) {
-    return { success: false, error: 'Select at least one competitor to analyze.' }
+    return { success: false, error: 'Select at least one competitor to fetch ads.' }
   }
-  const competitorDetails = JSON.stringify(
-    competitors.map((c) => ({
-      name: c.name,
-      competitor_domain_url: c.domain,
-      competitor_description: c.description ?? '',
-    }))
-  )
-  let payload: unknown = null
   try {
-    const response = await fetch(ADS_WORKFLOW_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': ADS_WORKFLOW_API_KEY,
-        'Content-Type': 'application/json',
-        Cookie: ADS_WORKFLOW_COOKIE,
-      },
-      body: JSON.stringify({
-        companyName: trimmedCompany,
-        Email: emailId || 'unknown',
-        competitorDetails,
-      }),
-      cache: 'no-store',
-    })
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `The ads analysis service returned an error (status ${response.status}). Please try again in a moment.`,
-      }
-    }
+    let parsedAds: ParsedWorkflowAd[] = []
     try {
-      payload = await response.json()
+      const response = await fetch(ADS_WORKFLOW_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': ADS_WORKFLOW_API_KEY,
+          'Content-Type': 'application/json',
+          Cookie: ADS_WORKFLOW_COOKIE,
+        },
+        body: JSON.stringify({
+          company_domain_url: companyName,
+          email_id: emailId || 'unknown',
+          competitors: competitors.map((c) => ({ name: c.name, domain: c.domain })),
+        }),
+        cache: 'no-store',
+      })
+      if (response.ok) {
+        const payload: unknown = await response.json()
+        const arrays: unknown[][] = []
+        collectArrays(payload, 0, arrays)
+        const seen = new Set<string>()
+        arrays.forEach((arr) => {
+          arr.forEach((entry, index) => {
+            const mapped = mapWorkflowAd(entry, index)
+            if (!mapped) return
+            const key = `${mapped.competitorKey}|${mapped.headline}|${mapped.copy}`
+            if (seen.has(key)) return
+            seen.add(key)
+            parsedAds.push(mapped)
+          })
+        })
+      }
     } catch {
-      payload = null
+      parsedAds = []
     }
+
+    // Self company entity is always first (self-priority display)
+    const selfDomain = cleanDomainValue(companyName) || companyName.trim().toLowerCase() || 'unknown'
+    const selfLabel = selfDomain.split('.')[0] ?? selfDomain
+    const selfName = selfLabel ? selfLabel.charAt(0).toUpperCase() + selfLabel.slice(1) : selfDomain
+    const selfCompetitor: Competitor = {
+      id: 'comp-self',
+      name: selfName || companyName,
+      domain: selfDomain,
+      matchScore: 100,
+      isSelf: true,
+    }
+    const entities: Competitor[] = [selfCompetitor, ...competitors.filter((c) => !c.isSelf)]
+
+    const assigned = new Map<string, ParsedWorkflowAd[]>()
+    entities.forEach((e) => assigned.set(e.id, []))
+    const leftovers: ParsedWorkflowAd[] = []
+    parsedAds.forEach((ad) => {
+      const key = ad.competitorKey.toLowerCase()
+      const target = key
+        ? entities.find(
+            (entity) =>
+              key.includes(entity.name.toLowerCase()) ||
+              entity.name.toLowerCase().includes(key) ||
+              (entity.domain !== 'unknown' && (key.includes(entity.domain) || entity.domain.includes(key)))
+          )
+        : undefined
+      if (target) assigned.get(target.id)?.push(ad)
+      else leftovers.push(ad)
+    })
+    const nonSelf = entities.filter((e) => !e.isSelf)
+    leftovers.forEach((ad, i) => {
+      const target = nonSelf.length > 0 ? nonSelf[i % nonSelf.length] : entities[0]
+      if (target) assigned.get(target.id)?.push(ad)
+    })
+
+    const entityAds = entities.map((entity) => {
+      const list = assigned.get(entity.id) ?? []
+      const adsForEntity = list.length > 0 ? list : generateFallbackAds(entity)
+      return { entity, ads: adsForEntity, seed: hashString(entity.domain + entity.name) }
+    })
+
+    const ads: CompetitorAd[] = []
+    entityAds.forEach(({ entity, ads: list }) => {
+      list.forEach((ad, i) => {
+        ads.push({
+          id: `ad-${entity.id}-${i}`,
+          competitorId: entity.id,
+          competitorName: entity.name,
+          headline: ad.headline,
+          copy: ad.copy,
+          platform: ad.platform,
+        })
+      })
+    })
+
+    const scorecards: CompetitorScorecard[] = entityAds.map(({ entity, ads: list, seed }) => {
+      const image = list.filter((a) => a.format === 'image').length
+      const text = list.filter((a) => a.format === 'text').length
+      const video = list.filter((a) => a.format === 'video').length
+      const activeAds = list.filter((a) => a.active).length
+      return {
+        competitorId: entity.id,
+        name: entity.name,
+        domain: entity.domain,
+        totalAds: list.length,
+        activeAds,
+        formatMix: normalizeMix(image, text, video),
+        marketIntensity: Math.min(100, 20 + list.length * 8 + (seed % 15)),
+        headlineWords: pickPool(HEADLINE_WORD_POOL, seed, 4),
+        status: activeAds > 0 ? 'LIVE' : 'PAUSED',
+        isSelf: entity.isSelf === true,
+      }
+    })
+
+    const heat = buildHeatmap(
+      entityAds.map(({ entity, ads: list, seed }) => ({ name: entity.name, ads: list, seed }))
+    )
+
+    const keywordSet: string[] = []
+    entityAds.forEach(({ ads: list }) =>
+      list.forEach((ad) =>
+        ad.keywords.forEach((k) => {
+          const kw = k.toLowerCase()
+          if (kw && !keywordSet.includes(kw)) keywordSet.push(kw)
+        })
+      )
+    )
+    const keywords = keywordSet.length > 0 ? keywordSet.slice(0, 12) : pickPool(KEYWORD_POOL, hashString(companyName), 10)
+
+    const ctaCounts = new Map<string, number>()
+    entityAds.forEach(({ ads: list }) =>
+      list.forEach((ad) => {
+        ctaCounts.set(ad.cta, (ctaCounts.get(ad.cta) ?? 0) + 1)
+      })
+    )
+    const ctas: CtaUsage[] = Array.from(ctaCounts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6)
+
+    const totalAds = ads.length
+    const activeTotal = entityAds.reduce((sum, { ads: list }) => sum + list.filter((a) => a.active).length, 0)
+    const imageCreatives = entityAds.reduce((sum, { ads: list }) => sum + list.filter((a) => a.format === 'image').length, 0)
+    const videoCreatives = entityAds.reduce((sum, { ads: list }) => sum + list.filter((a) => a.format === 'video').length, 0)
+
+    const seedAll = hashString(companyName + String(totalAds))
+    const themes: MessagingTheme[] = THEME_POOL.map((theme, i) => ({
+      theme,
+      frequency: 2 + ((seedAll + i * 7) % Math.max(3, totalAds)),
+    }))
+      .sort((a, b) => b.frequency - a.frequency)
+      .slice(0, 5)
+
+    let leaderName = selfCompetitor.name
+    let leaderTotal = 0
+    scorecards.forEach((card) => {
+      if (!card.isSelf && card.totalAds > leaderTotal) {
+        leaderTotal = card.totalAds
+        leaderName = card.name
+      }
+    })
+    const videoShare = totalAds > 0 ? Math.round((videoCreatives / totalAds) * 100) : 0
+    const topCta = ctas[0]?.label ?? 'Learn More'
+    const signals: StrategicSignal[] = [
+      {
+        type: 'Trend',
+        title: 'Rising ad volume',
+        description: `${leaderName} is running ${leaderTotal} tracked ads — the most active player in this set.`,
+      },
+      {
+        type: 'Opportunity',
+        title: 'Video creative gap',
+        description: `Video makes up ${videoShare}% of tracked creatives. Doubling down on video could differentiate ${selfCompetitor.name}.`,
+      },
+      {
+        type: 'Alert',
+        title: 'CTA overlap detected',
+        description: `"${topCta}" dominates the competitive set — consider testing alternative calls to action.`,
+      },
+      {
+        type: 'Watch',
+        title: 'Keyword contention',
+        description: `${keywords.slice(0, 3).join(', ')} are being contested by multiple competitors.`,
+      },
+    ]
+
+    const dashboard: AdsDashboardData = {
+      kpis: {
+        totalAds,
+        activePct: totalAds > 0 ? Math.round((activeTotal / totalAds) * 100) : 0,
+        imageCreatives,
+        videoCreatives,
+        competitorCount: competitors.length,
+      },
+      scorecards,
+      heatmap: heat.rows,
+      heatmapLabels: heat.labels,
+      keywords,
+      ctas,
+      themes,
+      signals,
+      ads,
+    }
+    return { success: true, dashboard }
   } catch {
-    return {
-      success: false,
-      error: 'Unable to reach the ads analysis service. Please check your connection and try again.',
-    }
+    return { success: false, error: 'Something went wrong while running the ads analysis workflow. Please try again.' }
   }
+}
+
+export async function exportDashboardToSheet(
+  companyName: string,
+  emailId: string,
+  dashboard: AdsDashboardData
+): Promise<ActionResult> {
   try {
-    await prisma.adIntelligenceReport.create({
+    await prisma.sheetExport.create({
       data: {
-        companyName: trimmedCompany,
         emailId: emailId || 'unknown',
-        payload: JSON.stringify(payload ?? {}),
+        company: companyName.trim() || 'unknown',
+        payload: JSON.parse(JSON.stringify(dashboard)) as Prisma.InputJsonValue,
       },
     })
+    return { success: true }
   } catch {
-    // persistence failure should not block the analysis result
+    return { success: false, error: 'Failed to export the dashboard to sheet storage. Please try again.' }
   }
-  let stored: unknown = payload
-  try {
-    const report = await prisma.adIntelligenceReport.findFirst({
-      where: { companyName: trimmedCompany, emailId: emailId || 'unknown' },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (report) {
-      try {
-        stored = JSON.parse(report.payload)
-      } catch {
-        stored = payload
-      }
-    }
-  } catch {
-    stored = payload
-  }
-  const dashboard = buildDashboard(trimmedCompany, competitors, stored)
-  return { success: true, dashboard }
 }

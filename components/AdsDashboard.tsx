@@ -38,6 +38,12 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
   const ctaMax = Math.max(1, ...data.ctas.map((c) => c.count))
   const themeMax = Math.max(1, ...data.themes.map((t) => t.frequency))
 
+  // Dynamic date range labels: 7-day, 30-day, or monthly view depending on the fetched data
+  const heatLabels = data.heatmapLabels && data.heatmapLabels.length > 0 ? data.heatmapLabels : MONTHS
+
+  // Self company (primary target) is always displayed first in scorecards
+  const orderedScorecards = [...data.scorecards].sort((a, b) => (b.isSelf ? 1 : 0) - (a.isSelf ? 1 : 0))
+
   const kpiCards = [
     { label: 'Total Ads Tracked', value: String(data.kpis.totalAds), icon: BarChart3 },
     { label: 'Active Ads', value: `${data.kpis.activePct}%`, icon: Activity },
@@ -54,7 +60,7 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div id="overview" className="mt-4 grid scroll-mt-6 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {kpiCards.map((kpi) => (
           <div key={kpi.label} className="ds-card p-4">
             <div className="flex items-center gap-2 text-grey-500">
@@ -66,13 +72,20 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
         ))}
       </div>
 
-      {/* Competitor Scorecards */}
+      {/* Competitor Scorecards — self company first */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {data.scorecards.map((card) => (
+        {orderedScorecards.map((card) => (
           <div key={card.competitorId} className="ds-card p-5">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h3 className="text-base font-semibold text-grey-900">{card.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-semibold text-grey-900">{card.name}</h3>
+                  {card.isSelf && (
+                    <span className="inline-flex items-center rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
+                      YOU
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-grey-500">{card.domain}</p>
               </div>
               <span
@@ -141,19 +154,22 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
         ))}
       </div>
 
-      {/* Ad Activity Pulse Heatmap */}
+      {/* Ad Activity Pulse Heatmap — dynamic date range */}
       <div className="ds-card mt-6 p-5">
         <div className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-grey-600" />
           <h3 className="text-base font-semibold text-grey-900">Ad Activity Pulse</h3>
         </div>
-        <p className="mt-1 text-xs text-grey-500">Monthly ad density per competitor over the last 12 months.</p>
+        <p className="mt-1 text-xs text-grey-500">Ad density per competitor across the detected date range.</p>
         <div className="mt-4 overflow-x-auto">
           <div className="min-w-[640px]">
             <div className="flex items-center gap-1 pl-32">
-              {MONTHS.map((m) => (
-                <span key={m} className="flex-1 text-center text-[10px] font-medium uppercase text-grey-500">
-                  {m}
+              {heatLabels.map((label, labelIndex) => (
+                <span
+                  key={`${label}-${labelIndex}`}
+                  className="flex-1 text-center text-[10px] font-medium uppercase text-grey-500"
+                >
+                  {label}
                 </span>
               ))}
             </div>
@@ -162,16 +178,16 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
                 <span className="w-32 shrink-0 truncate pr-2 text-xs font-medium text-grey-700">
                   {row.competitorName}
                 </span>
-                {row.monthly.map((value, monthIndex) => (
+                {row.monthly.map((value, bucketIndex) => (
                   <div
-                    key={`${row.competitorName}-${monthIndex}`}
+                    key={`${row.competitorName}-${bucketIndex}`}
                     className="h-6 flex-1 rounded-sm"
                     style={{
                       backgroundColor: `rgba(26, 115, 232, ${
                         value === 0 ? 0.06 : 0.15 + 0.7 * (value / heatMax)
                       })`,
                     }}
-                    title={`${row.competitorName} — ${MONTHS[monthIndex]}: ${value} ads`}
+                    title={`${row.competitorName} — ${heatLabels[bucketIndex] ?? ''}: ${value} ads`}
                   />
                 ))}
               </div>
@@ -181,7 +197,7 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
       </div>
 
       {/* Keyword Battlefield & CTA Arsenal */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div id="creative" className="mt-6 grid scroll-mt-6 grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="ds-card p-5">
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5 text-grey-600" />
@@ -252,7 +268,7 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
             ))}
           </div>
         </div>
-        <div className="ds-card p-5">
+        <div id="insights" className="ds-card scroll-mt-6 p-5">
           <div className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5 text-grey-600" />
             <h3 className="text-base font-semibold text-grey-900">Strategic Signals</h3>
@@ -267,8 +283,8 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
                   <SignalIcon type={signal.type} />
                   {signal.type}
                 </span>
-                <p className="mt-2 text-sm font-semibold text-grey-900">{signal.title}</p>
-                <p className="mt-1 text-xs leading-5 text-grey-600">{signal.description}</p>
+                <p className="mt-2 text-sm font-medium text-grey-900">{signal.title}</p>
+                <p className="mt-1 text-xs text-grey-600">{signal.description}</p>
               </div>
             ))}
           </div>

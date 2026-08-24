@@ -6,6 +6,7 @@ export interface Competitor {
   domain: string
   matchScore: number
   description?: string
+  isSelf?: boolean
 }
 
 export interface CompetitorAd {
@@ -46,6 +47,7 @@ export interface CompetitorScorecard {
   marketIntensity: number
   headlineWords: string[]
   status: CompetitorAdStatus
+  isSelf?: boolean
 }
 
 export interface HeatmapRow {
@@ -83,6 +85,7 @@ export interface AdsDashboardData {
   kpis: AdsDashboardKpis
   scorecards: CompetitorScorecard[]
   heatmap: HeatmapRow[]
+  heatmapLabels?: string[]
   keywords: string[]
   ctas: CtaUsage[]
   themes: MessagingTheme[]
