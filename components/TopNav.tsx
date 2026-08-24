@@ -1,6 +1,6 @@
 "use client"
 
-import { FileSpreadsheet, Images, Lightbulb, RefreshCw, Target, Users } from 'lucide-react'
+import { FileSpreadsheet, Images, Lightbulb, MessageSquareText, RefreshCw, Target, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { DashboardTab } from '@/lib/types'
 import Spinner from '@/components/Spinner'
@@ -15,6 +15,7 @@ const TAB_ITEMS: TabItem[] = [
   { id: 'insights', label: 'Insights', icon: Lightbulb },
   { id: 'gallery', label: 'Ad Gallery', icon: Images },
   { id: 'competitors', label: 'Competitors', icon: Users },
+  { id: 'creative', label: 'Creative Analysis', icon: MessageSquareText },
 ]
 
 interface TopNavProps {
@@ -22,7 +23,9 @@ interface TopNavProps {
   activeTab: DashboardTab
   onTabChange: (tab: DashboardTab) => void
   onSync: () => void
+  onCancelSync: () => void
   onSheet: () => void
+  onCancelSheet: () => void
   isSyncing: boolean
   isExporting: boolean
   sheetMessage: string
@@ -33,7 +36,9 @@ export default function TopNav({
   activeTab,
   onTabChange,
   onSync,
+  onCancelSync,
   onSheet,
+  onCancelSheet,
   isSyncing,
   isExporting,
   sheetMessage,
@@ -51,7 +56,7 @@ export default function TopNav({
           </div>
         </div>
 
-        <nav className="order-3 flex w-full items-center gap-1 sm:order-none sm:w-auto sm:flex-1 sm:justify-center">
+        <nav className="order-3 flex w-full flex-wrap items-center gap-1 sm:order-none sm:w-auto sm:flex-1 sm:justify-center">
           {TAB_ITEMS.map((item) => {
             const isActive = activeTab === item.id
             return (
@@ -72,26 +77,48 @@ export default function TopNav({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            className="ds-btn-secondary"
-            onClick={onSync}
-            disabled={isSyncing}
-            aria-label="Sync current dataset"
-          >
-            {isSyncing ? <Spinner /> : <RefreshCw className="h-4 w-4" />}
-            Sync
-          </button>
-          <button
-            type="button"
-            className="ds-btn-primary"
-            onClick={onSheet}
-            disabled={isExporting}
-            aria-label="Export dashboard to spreadsheet storage"
-          >
-            {isExporting ? <Spinner /> : <FileSpreadsheet className="h-4 w-4" />}
-            Sheet
-          </button>
+          {isSyncing ? (
+            <button
+              type="button"
+              className="ds-btn-secondary"
+              onClick={onCancelSync}
+              aria-label="Cancel in-progress sync"
+            >
+              <Spinner />
+              Cancel Sync
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ds-btn-secondary"
+              onClick={onSync}
+              aria-label="Sync current dataset"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Sync
+            </button>
+          )}
+          {isExporting ? (
+            <button
+              type="button"
+              className="ds-btn-secondary"
+              onClick={onCancelSheet}
+              aria-label="Cancel sheet export"
+            >
+              <Spinner />
+              Cancel Export
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ds-btn-primary"
+              onClick={onSheet}
+              aria-label="Export dashboard to spreadsheet storage"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Sheet
+            </button>
+          )}
         </div>
       </div>
       {sheetMessage && (

@@ -16,6 +16,11 @@ export interface CompetitorAd {
   headline: string
   copy: string
   platform: AdPlatform
+  format?: AdFormat
+  active?: boolean
+  date?: string
+  cta?: string
+  landingPage?: string
 }
 
 export interface ActionResult {
@@ -99,6 +104,22 @@ export interface AdsAnalysisResult {
   error?: string
 }
 
-export type DashboardTab = 'insights' | 'gallery' | 'competitors'
+export type DashboardTab = 'insights' | 'gallery' | 'competitors' | 'creative'
 
 export type AdFormat = 'image' | 'text' | 'video'
+
+export interface SnapshotPayload {
+  domain: string
+  competitors: Competitor[]
+  selectedIds: string[]
+  ads: CompetitorAd[]
+  dashboard: AdsDashboardData | null
+  hasSearched: boolean
+  hasFetchedAds: boolean
+}
+
+export interface SnapshotResult {
+  success: boolean
+  snapshot?: SnapshotPayload
+  error?: string
+}

@@ -59,7 +59,7 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
       {/* KPI Summary Cards */}
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {kpiCards.map((kpi) => (
-          <div key={kpi.label} className="ds-card p-4">
+          <div key={kpi.label} className="ds-card p-4" title={`${kpi.label}: ${kpi.value}`}>
             <div className="flex items-center gap-2 text-grey-500">
               <kpi.icon className="h-4 w-4" />
               <span className="text-xs font-medium tracking-wide">{kpi.label}</span>
@@ -91,6 +91,7 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
                     ? 'bg-success-surface text-success-deep'
                     : 'bg-grey-100 text-grey-600'
                 }`}
+                title={`Ad status: ${card.status}`}
               >
                 {card.status}
               </span>
@@ -106,9 +107,18 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
             </div>
             <div className="mt-4">
               <div className="flex h-2 w-full overflow-hidden rounded-full bg-grey-100">
-                <div style={{ width: `${card.formatMix.image}%`, backgroundColor: '#1A73E8' }} />
-                <div style={{ width: `${card.formatMix.text}%`, backgroundColor: '#DFC612' }} />
-                <div style={{ width: `${card.formatMix.video}%`, backgroundColor: '#F8528F' }} />
+                <div
+                  style={{ width: `${card.formatMix.image}%`, backgroundColor: '#1A73E8' }}
+                  title={`Image: ${card.formatMix.image}% of ${card.name} creatives`}
+                />
+                <div
+                  style={{ width: `${card.formatMix.text}%`, backgroundColor: '#DFC612' }}
+                  title={`Text: ${card.formatMix.text}% of ${card.name} creatives`}
+                />
+                <div
+                  style={{ width: `${card.formatMix.video}%`, backgroundColor: '#F8528F' }}
+                  title={`Video: ${card.formatMix.video}% of ${card.name} creatives`}
+                />
               </div>
               <div className="mt-2 flex flex-wrap gap-3 text-xs text-grey-600">
                 <span className="inline-flex items-center gap-1">
@@ -130,7 +140,10 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
                 <span className="font-medium">Market Intensity</span>
                 <span className="font-semibold text-grey-900">{card.marketIntensity}</span>
               </div>
-              <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-100">
+              <div
+                className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-100"
+                title={`Market intensity: ${card.marketIntensity} / 100`}
+              >
                 <div
                   className="h-full rounded-full"
                   style={{ width: `${card.marketIntensity}%`, backgroundColor: '#FB8145' }}
@@ -142,6 +155,7 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
                 <span
                   key={`${card.competitorId}-${word}`}
                   className="inline-flex items-center rounded-full bg-brand-surface px-3 py-1 text-xs font-medium text-brand"
+                  title={`Frequent headline word: ${word}`}
                 >
                   {word}
                 </span>
@@ -208,7 +222,10 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
                   <span className="font-medium">{theme.theme}</span>
                   <span className="font-semibold text-grey-900">{theme.frequency}</span>
                 </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-100">
+                <div
+                  className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-100"
+                  title={`${theme.theme}: ${theme.frequency} ads`}
+                >
                   <div
                     className="h-full rounded-full"
                     style={{
