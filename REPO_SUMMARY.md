@@ -1,23 +1,21 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T11:10:44.722Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-24T11:19:49.175Z.
 
 ## Overview
 
-AdScope — discover competitors for any domain and analyze their ads across platforms with an ad intelligence dashboard.
+AdScope discovers competitors for any domain and analyzes their ads across platforms with an intelligence dashboard. This fix repairs the truncated/corrupted lib/actions.ts (TS1127/TS1136/TS1005 at line 737) with a complete, valid implementation, and keeps the build script free of prisma db push (build = prisma generate && next build). Prisma schema is returned with additive-only models (AnalysisSession, SheetExport) required by existing server actions.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 33
 
 ## Features
 
-- Competitor discovery for any domain via Arena workflow
-- Selectable competitors table with match scores
-- Ads workflow analysis producing a full ad intelligence dashboard
-- KPI cards, scorecards, heatmap, keyword battlefield, CTA arsenal, messaging themes, strategic signals
-- Add extra competitor with automatic analysis
+- Competitor discovery via Arena workflow API
+- Ads analysis workflow with intelligence dashboard
+- Competitor scorecards, heatmap, CTA arsenal, messaging themes and strategic signals
 - Sheet export of dashboard data
-- Arena email gating via middleware and cookie
+- Arena email gating via middleware and provider
 
 ## Tech Stack
 
@@ -130,7 +128,7 @@ AdScope — discover competitors for any domain and analyze their ads across pla
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T11:10:44.722Z
+- **Updated at:** 2026-08-24T11:19:49.175Z
 - **Request:** Fix ONLY the failing Vercel build by decoupling Prisma schema migration from the build step. The current build script runs `prisma generate && prisma db push && next build`. The `prisma db push` step keeps failing during Vercel deploys with `potential_dataloss` errors because the generated schema drifts from the live Neon database (it wants to drop columns/tables that still contain data). We do NOT want migrations to run during the build.
 
 Required change (Option C — remove db push from build):
