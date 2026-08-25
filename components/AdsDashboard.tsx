@@ -5,6 +5,8 @@ import {
   Eye,
   Image as ImageIcon,
   Lightbulb,
+  MousePointerClick,
+  Target,
   TrendingUp,
   Users,
   Video,
@@ -24,6 +26,19 @@ const signalBadgeStyles: Record<SignalType, string> = {
   Watch: 'bg-warning-surface text-warning-deep',
 }
 
+// Keyword Battlefield tag-cloud styling (DS graphic surface/text pairs)
+const BATTLEFIELD_TAGS: Array<{ bg: string; text: string }> = [
+  { bg: '#F3F8FE', text: '#1A73E8' },
+  { bg: '#FFF9F5', text: '#C96737' },
+  { bg: '#FBF7FD', text: '#8F50AC' },
+  { bg: '#F2FBFD', text: '#0086AB' },
+  { bg: '#FDFCF3', text: '#B29E0E' },
+  { bg: '#FFF7F9', text: '#C64272' },
+  { bg: '#F5FCF9', text: '#2FA06A' },
+]
+
+const KEYWORD_SIZES = ['text-base', 'text-xs', 'text-sm', 'text-xs', 'text-sm']
+
 function SignalIcon({ type }: { type: SignalType }) {
   if (type === 'Opportunity') return <Lightbulb className="h-4 w-4" />
   if (type === 'Trend') return <TrendingUp className="h-4 w-4" />
@@ -34,6 +49,7 @@ function SignalIcon({ type }: { type: SignalType }) {
 export default function AdsDashboard({ data }: AdsDashboardProps) {
   const heatMax = Math.max(1, ...data.heatmap.flatMap((row) => row.monthly))
   const themeMax = Math.max(1, ...data.themes.map((t) => t.frequency))
+  const ctaArsenalMax = Math.max(1, ...data.ctas.map((c) => c.count))
 
   // Dynamic date range labels: 7-day, 30-day, or monthly view depending on the fetched data
   const heatLabels = data.heatmapLabels && data.heatmapLabels.length > 0 ? data.heatmapLabels : MONTHS
@@ -207,6 +223,70 @@ export default function AdsDashboard({ data }: AdsDashboardProps) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Keyword Battlefield & CTA Arsenal — inserted above Messaging Themes / Strategic Signals */}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="ds-card p-5">
+          <div className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-grey-600" />
+            <h3 className="text-base font-semibold text-grey-900">Keyword Battlefield</h3>
+          </div>
+          <p className="mt-1 text-xs text-grey-500">Top search terms competitors are fighting over.</p>
+          {data.keywords.length === 0 ? (
+            <p className="mt-4 text-xs text-grey-500">No keyword data detected for this analysis.</p>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {data.keywords.map((keyword, index) => {
+                const tone = BATTLEFIELD_TAGS[index % BATTLEFIELD_TAGS.length] ?? { bg: '#F3F8FE', text: '#1A73E8' }
+                const size = KEYWORD_SIZES[index % KEYWORD_SIZES.length] ?? 'text-sm'
+                return (
+                  <span
+                    key={keyword}
+                    className={`inline-flex items-center rounded-full px-3 py-1 font-medium ${size}`}
+                    style={{ backgroundColor: tone.bg, color: tone.text }}
+                    title={`Contested keyword: ${keyword}`}
+                  >
+                    {keyword}
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        <div className="ds-card p-5">
+          <div className="flex items-center gap-2">
+            <MousePointerClick className="h-5 w-5 text-grey-600" />
+            <h3 className="text-base font-semibold text-grey-900">CTA Arsenal</h3>
+          </div>
+          <p className="mt-1 text-xs text-grey-500">Most-used calls-to-action across the competitive set.</p>
+          {data.ctas.length === 0 ? (
+            <p className="mt-4 text-xs text-grey-500">No CTA data detected for this analysis.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {data.ctas.map((cta) => (
+                <div key={cta.label}>
+                  <div className="flex items-center justify-between text-xs text-grey-700">
+                    <span className="font-medium">{cta.label}</span>
+                    <span className="font-semibold text-grey-900">{cta.count}</span>
+                  </div>
+                  <div
+                    className="mt-1 h-2 w-full overflow-hidden rounded-full bg-grey-100"
+                    title={`${cta.label}: used in ${cta.count} ads`}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.round((cta.count / ctaArsenalMax) * 100)}%`,
+                        backgroundColor: '#1A73E8',
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

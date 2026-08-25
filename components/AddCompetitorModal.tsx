@@ -40,7 +40,7 @@ export default function AddCompetitorModal({ isOpen, onClose, onAdd }: AddCompet
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="ds-card relative w-full max-w-md p-6">
+      <div className="ds-card relative z-10 w-full max-w-md rounded-ds-lg border border-grey-200 bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-grey-900">Add Competitor</h2>

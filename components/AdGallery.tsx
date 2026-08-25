@@ -1,6 +1,16 @@
 "use client"
 
-import { Images, Search } from 'lucide-react'
+import {
+  Activity,
+  BarChart3,
+  Calendar,
+  Image as ImageIcon,
+  Images,
+  MousePointerClick,
+  PieChart,
+  Search,
+  Users,
+} from 'lucide-react'
 import type { AdFormat, CompetitorAd } from '@/lib/types'
 import AdCard, { deriveAdFormat } from '@/components/AdCard'
 
@@ -19,6 +29,16 @@ const FORMAT_FILTERS: Array<{ id: 'all' | AdFormat; label: string }> = [
   { id: 'video', label: 'Video' },
 ]
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const SHARE_COLORS = ['#1A73E8', '#FB8145', '#B364D7', '#00A7D6', '#DFC612', '#F8528F', '#3BC884', '#6D717F']
+
+const MIX_META: Array<{ id: AdFormat; label: string; color: string }> = [
+  { id: 'image', label: 'Image', color: '#1A73E8' },
+  { id: 'text', label: 'Text', color: '#DFC612' },
+  { id: 'video', label: 'Video', color: '#F8528F' },
+]
+
 export default function AdGallery({
   ads,
   search,
@@ -33,6 +53,63 @@ export default function AdGallery({
     const haystack = `${ad.headline} ${ad.copy} ${ad.cta ?? ''} ${ad.competitorName} ${ad.platform}`.toLowerCase()
     return haystack.includes(query)
   })
+
+  /* ---------------- Summary dashboard metrics (full ads set) ---------------- */
+  const totalAds = ads.length
+  const activeCount = ads.filter((ad) => ad.active ?? true).length
+  const activePct = totalAds > 0 ? Math.round((activeCount / totalAds) * 100) : 0
+  const formatCounts: Record<AdFormat, number> = { image: 0, text: 0, video: 0 }
+  ads.forEach((ad) => {
+    formatCounts[deriveAdFormat(ad)] += 1
+  })
+  const mixTotal = Math.max(1, totalAds)
+
+  const shareMap = new Map<string, number>()
+  ads.forEach((ad) => {
+    shareMap.set(ad.competitorName, (shareMap.get(ad.competitorName) ?? 0) + 1)
+  })
+  const competitorShare = Array.from(shareMap.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+  const competitorCount = competitorShare.length
+
+  const ctaMap = new Map<string, number>()
+  ads.forEach((ad) => {
+    if (ad.cta) ctaMap.set(ad.cta, (ctaMap.get(ad.cta) ?? 0) + 1)
+  })
+  const ctaEntries = Array.from(ctaMap.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+  const topCta = ctaEntries[0] ?? null
+
+  const timelineMap = new Map<string, { label: string; order: number; count: number }>()
+  ads.forEach((ad) => {
+    if (!ad.date) return
+    const d = new Date(ad.date)
+    if (Number.isNaN(d.getTime())) return
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    const existing = timelineMap.get(key)
+    if (existing) {
+      existing.count += 1
+    } else {
+      timelineMap.set(key, {
+        label: MONTHS_SHORT[d.getMonth()] ?? '',
+        order: d.getFullYear() * 12 + d.getMonth(),
+        count: 1,
+      })
+    }
+  })
+  const timeline = Array.from(timelineMap.values())
+    .sort((a, b) => a.order - b.order)
+    .slice(-8)
+  const timelineMax = Math.max(1, ...timeline.map((t) => t.count))
+
+  const kpiCards = [
+    { label: 'Total Ads Tracked', value: String(totalAds), icon: BarChart3 },
+    { label: 'Active Ads', value: String(activeCount), icon: Activity },
+    { label: 'Image Creatives', value: String(formatCounts.image), icon: ImageIcon },
+    { label: 'Competitors', value: String(competitorCount), icon: Users },
+  ]
 
   return (
     <div className="mt-8">
@@ -50,6 +127,7 @@ export default function AdGallery({
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search headlines, copy, CTAs…"
             className="ds-input pl-11"
+            style={{ paddingLeft: '44px' }}
             aria-label="Search ads"
           />
         </div>
@@ -70,6 +148,160 @@ export default function AdGallery({
           ))}
         </div>
       </div>
+
+      {/* Ad Gallery Summary Dashboard — directly above the ad cards grid */}
+      {totalAds > 0 && (
+        <div className="mt-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {kpiCards.map((kpi) => (
+              <div key={kpi.label} className="ds-card p-4" title={`${kpi.label}: ${kpi.value}`}>
+                <div className="flex items-center gap-2 text-grey-500">
+                  <kpi.icon className="h-4 w-4" />
+                  <span className="text-xs font-medium tracking-wide">{kpi.label}</span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold text-grey-900">{kpi.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Activity donut */}
+            <div className="ds-card p-4">
+              <div className="flex items-center gap-2 text-grey-500">
+                <Activity className="h-4 w-4" />
+                <span className="text-xs font-medium tracking-wide">Activity</span>
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <svg viewBox="0 0 36 36" className="h-16 w-16 shrink-0">
+                  <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#EFF0F2" strokeWidth="3.5" />
+                  <circle
+                    cx="18"
+                    cy="18"
+                    r="15.9155"
+                    fill="none"
+                    stroke="#3BC884"
+                    strokeWidth="3.5"
+                    strokeDasharray={`${activePct}, 100`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 18 18)"
+                  />
+                </svg>
+                <div>
+                  <p className="text-xl font-semibold text-grey-900">{activePct}%</p>
+                  <p className="text-xs text-grey-500">
+                    {activeCount} of {totalAds} live
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Creative Mix */}
+            <div className="ds-card p-4">
+              <div className="flex items-center gap-2 text-grey-500">
+                <PieChart className="h-4 w-4" />
+                <span className="text-xs font-medium tracking-wide">Creative Mix</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {MIX_META.map((meta) => {
+                  const count = formatCounts[meta.id]
+                  const pct = Math.round((count / mixTotal) * 100)
+                  return (
+                    <div key={meta.id}>
+                      <div className="flex items-center justify-between text-xs text-grey-700">
+                        <span className="font-medium">{meta.label}</span>
+                        <span className="font-semibold text-grey-900">{pct}%</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-grey-100">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${pct}%`, backgroundColor: meta.color }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Top CTA */}
+            <div className="ds-card p-4">
+              <div className="flex items-center gap-2 text-grey-500">
+                <MousePointerClick className="h-4 w-4" />
+                <span className="text-xs font-medium tracking-wide">Top CTA</span>
+              </div>
+              {topCta ? (
+                <div className="mt-3">
+                  <span className="inline-flex items-center rounded-full bg-brand-surface px-3 py-1 text-sm font-semibold text-brand">
+                    {topCta.label}
+                  </span>
+                  <p className="mt-2 text-xs text-grey-500">Used in {topCta.count} ads</p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-grey-500">No CTA data available</p>
+              )}
+            </div>
+
+            {/* Timeline */}
+            <div className="ds-card p-4">
+              <div className="flex items-center gap-2 text-grey-500">
+                <Calendar className="h-4 w-4" />
+                <span className="text-xs font-medium tracking-wide">Timeline</span>
+              </div>
+              {timeline.length === 0 ? (
+                <p className="mt-3 text-xs text-grey-500">No date data available</p>
+              ) : (
+                <div className="mt-3 flex h-16 items-end gap-1">
+                  {timeline.map((bucket) => (
+                    <div key={`${bucket.order}`} className="flex flex-1 flex-col items-center gap-1">
+                      <div
+                        className="w-full rounded-t-sm"
+                        style={{
+                          height: `${Math.max(8, Math.round((bucket.count / timelineMax) * 48))}px`,
+                          backgroundColor: '#1A73E8',
+                        }}
+                        title={`${bucket.label}: ${bucket.count} ads`}
+                      />
+                      <span className="text-[9px] font-medium uppercase text-grey-500">{bucket.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Competitor Ad Share */}
+          <div className="ds-card mt-4 p-4">
+            <div className="flex items-center gap-2 text-grey-500">
+              <Users className="h-4 w-4" />
+              <span className="text-xs font-medium tracking-wide">Competitor Ad Share</span>
+            </div>
+            <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-grey-100">
+              {competitorShare.map((entry, index) => (
+                <div
+                  key={entry.name}
+                  style={{
+                    width: `${Math.round((entry.count / mixTotal) * 100)}%`,
+                    backgroundColor: SHARE_COLORS[index % SHARE_COLORS.length] ?? '#1A73E8',
+                  }}
+                  title={`${entry.name}: ${entry.count} ads`}
+                />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs text-grey-600">
+              {competitorShare.map((entry, index) => (
+                <span key={entry.name} className="inline-flex items-center gap-1">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: SHARE_COLORS[index % SHARE_COLORS.length] ?? '#1A73E8' }}
+                  />
+                  {entry.name}
+                  <span className="font-semibold text-grey-900">({entry.count})</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <p className="mt-3 text-xs text-grey-500">
         Showing {filtered.length} of {ads.length} ads

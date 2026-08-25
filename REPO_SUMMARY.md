@@ -1,21 +1,20 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T08:24:25.264Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T11:32:30.968Z.
 
 ## Overview
 
-Competitor ad intelligence dashboard: discover competitors for any domain, run the ads workflow for the selected set, and analyze creatives, CTAs, and messaging themes.
+Competitor ad intelligence dashboard: discover competitors for any domain, fetch and analyze their ads, and explore insights, ad gallery, competitor intel, and creative analysis tabs.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 38
 
 ## Features
 
-- Domain-based competitor discovery via Arena workflow
-- Get Ads for Selected workflow trigger with exact API payload schema
-- Market insights dashboard with KPIs, scorecards, and activity heatmap
-- Ad gallery with search and format filters
-- Competitor intel and creative analysis tabs
+- Domain-based competitor discovery
+- Ads workflow analysis with market insights dashboard
+- Ad gallery with summary KPIs and search/format filters
+- Creative analysis with keyword drill-down and messaging tags
 - Server-side session snapshots keyed by Arena emailId
 
 ## Tech Stack
@@ -140,71 +139,50 @@ Competitor ad intelligence dashboard: discover competitors for any domain, run t
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T08:24:25.264Z
+- **Updated at:** 2026-08-25T11:32:30.968Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-Implement handleGetAdsForSelected API Function:
+Insights Tab Layout Update:
 
-Inside the main component (where the "Get Ads for Selected" button lives), implement the exact API execution logic provided below.
+Insert the "Keyword Battlefield" (tag cloud of top search terms) and "CTA Arsenal" (horizontal bar chart of most-used calls-to-action) components directly above the existing "Messaging Themes" and "Strategic Signals" visuals in the Insights tab.
 
-Crucial Payload Requirement: You must map the selected competitors from the UI state to match the exact keys expected by the API (name, competitor_domain_url, competitor_description).
+Ad Gallery Tab Layout Update:
 
-Stringify Requirement: You must JSON.stringify() the competitorDetails array before adding it to the main payload, as the API expects this specific field to be a stringified array, not a native JSON array.
+Insert the Ad Gallery Summary Dashboard directly above the main ad cards grid. This summary section must include:
 
-Integrate the exact Code Snippet:
+The 4 top KPI cards (Total Ads Tracked, Active Ads, Image Creatives, Competitors).
 
-Use the following logic for the API call:
+The secondary metrics row containing the Activity donut/progress, Creative Mix horizontal bars, Top CTA summary, and Timeline bar.
 
-const handleGetAdsForSelected = async () => {
-  if (!selectedCompetitors || selectedCompetitors.length === 0) return;
+The Competitor Ad Share horizontal stacked progress bar.
 
-  setIsFetchingAds(true);
-  try {
-    // 1. Map to exact API schema
-    const formattedCompetitors = selectedCompetitors.map((comp) => ({
-      name: comp.competitorName || comp.name, 
-      competitor_domain_url: comp.competitorDomain || comp.domain, 
-      competitor_description: comp.description || `Competitor to ${companyDomain}`
-    }));
+Fix Search Box Overlap (CSS):
 
-    // 2. Construct payload with double-stringified array
-    const payload = {
-      companyName: companyDomain,
-      Email: userEmail,
-      competitorDetails: JSON.stringify(formattedCompetitors)
-    };
+Fix the visual bug in the Ad Gallery's search input where the magnifying glass icon overlaps with the placeholder text ("Search headlines, copy, CTAs...").
 
-    // 3. Execute POST request
-    const response = await fetch('https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls',
-      },
-      body: JSON.stringify(payload)
-    });
+Apply appropriate left padding (e.g., pl-10 or pl-12) to the <input> element so the text starts to the right of the absolutely positioned search icon.
 
-    if (!response.ok) throw new Error(`API Error: ${response.status}`);
-    const data = await response.json();
+Creative Analysis Tab Complete Layout:
 
-    // 4. Proceed to fetch Dashboard Data from DB here
+Structure the Creative Analysis tab to display the following components in this exact top-to-bottom order:
 
-  } catch (error) {
-    console.error("Error triggering ad workflow:", error);
-  } finally {
-    setIsFetchingAds(false);
-  }
-};
+Summary Donut Cards: A grid of 4 metric cards (Have Image Creative, Have Video Creative, Have Clear CTA, Have Keyword Data) with percentage rings.
 
-Button Visibility & Disabled State:
+Keyword Drill-down: The "Top Keywords — All Competitors" horizontal stacked bar chart, followed by a three-column grid displaying individual keyword search volumes per competitor.
 
-Bind this function to the onClick event of the "Get Ads for Selected" button.
+Messaging & Openers: The "Messaging Language" colorful tag cloud, followed by the "Common Headline Openers" grid showing recurring phrases and their ad counts.
 
-Ensure the button is disabled when isFetchingAds is true, or when selectedCompetitors.length === 0.
+Unique Headlines: A multi-column layout listing the top 10 unique headlines used by each respective competitor.
 
-Ensure this button/section immediately becomes visible and active if the user makes any changes to their competitor selection (either via the main table checkboxes or the active competitors dropdown in the top header).
+Fix "Add Competitor" Modal Transparency (CSS):
+
+Fix the visual bug where the "Add Competitor" modal is transparent and its contents overlap with the underlying background (e.g., the Ad Gallery grid).
+
+Apply a solid background color class (e.g., bg-white or bg-slate-800 depending on the active theme) to the modal's main container <div>.
+
+Ensure the modal has a high z-index (e.g., z-50), a drop shadow (shadow-xl), and proper relative/absolute positioning so it sits opaquely over the dimmed backdrop. Do not alter the modal's Javascript functionality or state.
 
 Constraints:
 
