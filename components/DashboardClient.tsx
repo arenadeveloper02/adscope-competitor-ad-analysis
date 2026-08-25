@@ -311,30 +311,30 @@ export default function DashboardClient() {
     const heatmap = dashboard.heatmap.filter((row) => !inactiveNames.has(row.competitorName))
     const remainingAds = dashboard.ads.filter((ad) => !inactiveSet.has(ad.competitorId))
     const total = remainingAds.length
-    const activeCount = remainingAds.filter((ad) => ad.active ?? true).length
+    const activeCount = remainingAds.filter((ad) => ad.active !== false).length
     const imageCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'image').length
     const videoCreatives = remainingAds.filter((ad) => deriveAdFormat(ad) === 'video').length
     visibleDashboard = {
       ...dashboard,
-      scorecards,
-      heatmap,
-      ads: remainingAds,
       kpis: {
-        ...dashboard.kpis,
         totalAds: total,
         activePct: total > 0 ? Math.round((activeCount / total) * 100) : 0,
         imageCreatives,
         videoCreatives,
         competitorCount: scorecards.length,
       },
+      scorecards,
+      heatmap,
+      ads: remainingAds,
     }
   }
-  const visibleAds = ads.filter((ad) => !inactiveCompetitorIds.includes(ad.competitorId))
+
+  const selectedCount = selectedIds.length
 
   return (
     <div className="min-h-screen">
       <TopNav
-        companyName={cleanDomainInput(domain)}
+        companyName={domain.trim()}
         competitors={competitors}
         activeCompetitorIds={selectedIds}
         activeTab={activeTab}
@@ -344,110 +344,112 @@ export default function DashboardClient() {
         showTabs={dashboardVisible}
       />
 
-      <div className="mx-auto min-h-screen w-full max-w-6xl px-4 pb-16 pt-8 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+        {/* Analyze a Domain — hidden once the dashboard is visible */}
         {showSetup && (
-          <header>
-            <h1 className="text-3xl font-semibold leading-10 text-grey-900">AdScope</h1>
-            <p className="mt-1 text-sm text-grey-600">
-              Discover competitors for any domain and analyze their ads across platforms.
-            </p>
-          </header>
-        )}
-
-        {/* Domain input section — hidden once the dashboard is visible */}
-        {showSetup && (
-          <section ref={domainSectionRef} className="ds-card mt-8 p-6">
-            <h2 className="text-lg font-semibold text-grey-900">Analyze a Domain</h2>
-            <p className="mt-1 text-sm text-grey-600">
-              Enter a company domain to discover its closest competitors and their ad strategy.
-            </p>
-            <form onSubmit={handleListCompetitors} className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-400" />
+          <section ref={domainSectionRef} className="ds-card p-6">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ds bg-brand-surface text-brand">
+                <Megaphone className="h-5 w-5" />
+              </span>
+              <div>
+                <h1 className="text-lg font-semibold text-grey-900">Analyze a Domain</h1>
+                <p className="text-sm text-grey-600">
+                  Enter a company domain to discover its competitors and analyze their ads.
+                </p>
+              </div>
+            </div>
+            <form onSubmit={handleListCompetitors} className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1">
                 <input
                   type="text"
                   value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
+                  onChange={(e) => {
+                    setDomain(e.target.value)
+                    if (domainError) setDomainError('')
+                  }}
                   placeholder="e.g. hubspot.com"
-                  className="ds-input pl-11"
-                  aria-label="Company domain"
+                  className="ds-input"
+                  aria-label="Domain URL to analyze"
                 />
+                {domainError && <p className="mt-1 text-xs text-errords">{domainError}</p>}
               </div>
               <button type="submit" className="ds-btn-primary" disabled={isFetchingCompetitors}>
+                <Search className="h-5 w-5" />
                 {isFetchingCompetitors ? 'Searching…' : 'List Competitors'}
               </button>
             </form>
-            {domainError && <p className="mt-3 text-sm text-errords-deep">{domainError}</p>}
-            {apiError && <p className="mt-3 text-sm text-errords-deep">{apiError}</p>}
-            {isFetchingCompetitors && (
-              <div className="mt-6">
-                <Spinner label="Searching for competitors…" />
-              </div>
-            )}
           </section>
         )}
 
-        {/* Competitor selection table + Get Ads for Selected. This section is
-            shown before the dashboard loads and immediately re-appears whenever
-            the user changes the competitor selection (table checkboxes, the
-            header dropdown, or the Add Competitor flow). */}
-        {showTable && !isFetchingCompetitors && (
-          <section className="ds-card mt-8 overflow-hidden">
-            <div className="flex flex-col gap-3 border-b border-grey-100 p-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-grey-600" />
-                  <h2 className="text-lg font-semibold text-grey-900">Select Competitors</h2>
-                </div>
-                <p className="mt-1 text-sm text-grey-600">
-                  Choose the competitors to analyze, then fetch their ads.
-                </p>
+        {/* Competitor discovery loading state */}
+        {isFetchingCompetitors && (
+          <div className="ds-card mt-6 p-10">
+            <Spinner label="Discovering competitors for this domain…" />
+          </div>
+        )}
+
+        {/* Competitor discovery error */}
+        {!isFetchingCompetitors && apiError && (
+          <div className="ds-card mt-6 border-l-4 p-4" style={{ borderLeftColor: '#F31A1A' }}>
+            <p className="text-sm text-grey-700">{apiError}</p>
+          </div>
+        )}
+
+        {/* Competitor selection table + Get Ads for Selected. Re-surfaces whenever
+            the user changes their competitor selection (table checkboxes, header
+            dropdown toggles, or Add Competitor). */}
+        {!isFetchingCompetitors && showTable && competitors.length > 0 && (
+          <section className="ds-card mt-6 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-grey-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-grey-600" />
+                <h2 className="text-base font-semibold text-grey-900">
+                  Competitors Found ({competitors.length})
+                </h2>
               </div>
               <button
                 type="button"
                 className="ds-btn-primary"
                 onClick={handleGetAdsForSelected}
-                disabled={isFetchingAds || selectedIds.length === 0}
+                disabled={isFetchingAds || selectedCount === 0}
+                aria-label="Get ads for selected competitors"
               >
-                <Megaphone className="h-5 w-5" />
-                {isFetchingAds ? 'Fetching Ads…' : `Get Ads for Selected (${selectedIds.length})`}
+                {isFetchingAds
+                  ? 'Fetching Ads…'
+                  : `Get Ads for Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
               </button>
             </div>
-            {competitors.length === 0 ? (
-              <div className="p-10 text-center">
-                <p className="text-sm font-medium text-grey-700">No competitors to show yet</p>
-                <p className="mt-1 text-xs text-grey-500">
-                  Search a domain above or add a competitor manually from the top bar.
-                </p>
-              </div>
-            ) : (
-              <CompetitorsTable
-                competitors={competitors}
-                selectedIds={selectedIds}
-                onToggle={handleToggle}
-                onToggleAll={handleToggleAll}
-              />
-            )}
-            {adsError && (
-              <p className="border-t border-grey-100 px-6 py-4 text-sm text-errords-deep">{adsError}</p>
-            )}
+            <CompetitorsTable
+              competitors={competitors}
+              selectedIds={selectedIds}
+              onToggle={handleToggle}
+              onToggleAll={handleToggleAll}
+            />
           </section>
         )}
 
-        {/* Ads workflow progress */}
+        {/* Ads workflow loading state */}
         {isFetchingAds && (
-          <div className="ds-card mt-8 p-10">
-            <Spinner label="Analyzing competitor ads — this can take a minute…" />
+          <div className="ds-card mt-6 p-10">
+            <Spinner label="Fetching and analyzing competitor ads — this can take a moment…" />
+          </div>
+        )}
+
+        {/* Ads workflow error */}
+        {!isFetchingAds && adsError && (
+          <div className="ds-card mt-6 border-l-4 p-4" style={{ borderLeftColor: '#F31A1A' }}>
+            <p className="text-sm text-grey-700">{adsError}</p>
           </div>
         )}
 
         {/* Dashboard tabs — visible only after a successful ads fetch */}
-        {dashboardVisible && visibleDashboard && (
+        {!isFetchingAds && dashboardVisible && visibleDashboard && (
           <>
             {activeTab === 'insights' && <AdsDashboard data={visibleDashboard} />}
             {activeTab === 'gallery' && (
               <AdGallery
-                ads={visibleAds}
+                ads={visibleDashboard.ads}
                 search={gallerySearch}
                 format={galleryFormat}
                 onSearchChange={setGallerySearch}
@@ -455,23 +457,14 @@ export default function DashboardClient() {
               />
             )}
             {activeTab === 'competitors' && (
-              <CompetitorIntel
-                data={visibleDashboard}
-                ads={visibleAds}
-                competitors={competitors}
-                onFindInGallery={handleFindInGallery}
-              />
+              <CompetitorIntel data={visibleDashboard} onFindInGallery={handleFindInGallery} />
             )}
             {activeTab === 'creative' && (
-              <CreativeAnalysis
-                data={visibleDashboard}
-                ads={visibleAds}
-                onFilterGallery={handleFilterGallery}
-              />
+              <CreativeAnalysis data={visibleDashboard} onFilterGallery={handleFilterGallery} />
             )}
           </>
         )}
-      </div>
+      </main>
 
       <AddCompetitorModal
         isOpen={isModalOpen}

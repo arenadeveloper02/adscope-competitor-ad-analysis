@@ -6,7 +6,7 @@ import { deriveAdFormat } from '@/components/AdCard'
 
 interface CreativeAnalysisProps {
   data: AdsDashboardData
-  ads: CompetitorAd[]
+  ads?: CompetitorAd[]
   onFilterGallery: (format: 'all' | AdFormat, query: string) => void
 }
 
@@ -17,9 +17,12 @@ const FORMAT_META: Array<{ id: AdFormat; label: string; color: string }> = [
 ]
 
 export default function CreativeAnalysis({ data, ads, onFilterGallery }: CreativeAnalysisProps) {
-  const total = Math.max(1, ads.length)
+  // Fall back to the dashboard dataset when the caller does not pass an
+  // explicit ads prop (e.g. when rendering directly from dashboard data).
+  const adsList: CompetitorAd[] = ads ?? data.ads
+  const total = Math.max(1, adsList.length)
   const counts: Record<AdFormat, number> = { image: 0, text: 0, video: 0 }
-  ads.forEach((ad) => {
+  adsList.forEach((ad) => {
     counts[deriveAdFormat(ad)] += 1
   })
   const ctaMax = Math.max(1, ...data.ctas.map((c) => c.count))

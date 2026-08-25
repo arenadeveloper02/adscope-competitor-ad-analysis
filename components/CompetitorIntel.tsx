@@ -7,8 +7,8 @@ import AdCard from '@/components/AdCard'
 
 interface CompetitorIntelProps {
   data: AdsDashboardData
-  ads: CompetitorAd[]
-  competitors: Competitor[]
+  ads?: CompetitorAd[]
+  competitors?: Competitor[]
   onFindInGallery: (query: string) => void
 }
 
@@ -49,6 +49,11 @@ export default function CompetitorIntel({
 }: CompetitorIntelProps) {
   const [selectedId, setSelectedId] = useState<string>('all')
 
+  // Fall back to the dashboard dataset when the caller does not pass explicit
+  // ads / competitors props (e.g. when rendering directly from dashboard data).
+  const adsList: CompetitorAd[] = ads ?? data.ads
+  const competitorList: Competitor[] = competitors ?? []
+
   const scorecards = data.scorecards
   const selected =
     selectedId === 'all' ? null : scorecards.find((s) => s.competitorId === selectedId) ?? null
@@ -60,7 +65,7 @@ export default function CompetitorIntel({
   const audience = AUDIENCES[seed % AUDIENCES.length] ?? ''
 
   const description = selected
-    ? competitors.find((c) => c.id === selected.competitorId)?.description
+    ? competitorList.find((c) => c.id === selected.competitorId)?.description
     : undefined
   const about = selected
     ? description ??
@@ -68,8 +73,8 @@ export default function CompetitorIntel({
     : `Aggregate intelligence across ${scorecards.length} tracked companies covering ${data.kpis.totalAds} ads.`
 
   const recentAds = (selected
-    ? ads.filter((ad) => ad.competitorId === selected.competitorId)
-    : ads
+    ? adsList.filter((ad) => ad.competitorId === selected.competitorId)
+    : adsList
   ).slice(0, 6)
 
   return (

@@ -1,10 +1,10 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T05:38:32.545Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T08:24:25.264Z.
 
 ## Overview
 
-Competitor ad intelligence dashboard: discover competitors for any domain, select them, and trigger an ads analysis workflow with persisted session snapshots.
+Competitor ad intelligence dashboard: discover competitors for any domain, run the ads workflow for the selected set, and analyze creatives, CTAs, and messaging themes.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 38
@@ -12,10 +12,11 @@ Competitor ad intelligence dashboard: discover competitors for any domain, selec
 ## Features
 
 - Domain-based competitor discovery via Arena workflow
-- Competitor selection table with Get Ads for Selected workflow trigger
-- Ads dashboard with KPIs, scorecards, heatmap, themes, and signals
+- Get Ads for Selected workflow trigger with exact API payload schema
+- Market insights dashboard with KPIs, scorecards, and activity heatmap
 - Ad gallery with search and format filters
-- Server-side dashboard snapshot persistence keyed by Arena emailId
+- Competitor intel and creative analysis tabs
+- Server-side session snapshots keyed by Arena emailId
 
 ## Tech Stack
 
@@ -139,7 +140,7 @@ Competitor ad intelligence dashboard: discover competitors for any domain, selec
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T05:38:32.545Z
+- **Updated at:** 2026-08-25T08:24:25.264Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
