@@ -1,159 +1,93 @@
 "use client"
 
 import { useState } from 'react'
-import { ChevronDown, Images, Lightbulb, MessageSquareText, Plus, Target, Users } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
-import type { Competitor, DashboardTab } from '@/lib/types'
-
-interface TabItem {
-  id: DashboardTab
-  label: string
-  icon: LucideIcon
-}
-
-const TAB_ITEMS: TabItem[] = [
-  { id: 'insights', label: 'Insights', icon: Lightbulb },
-  { id: 'gallery', label: 'Ad Gallery', icon: Images },
-  { id: 'competitors', label: 'Competitors', icon: Users },
-  { id: 'creative', label: 'Creative Analysis', icon: MessageSquareText },
-]
+import { ChevronDown, Megaphone, Plus } from 'lucide-react'
+import type { Competitor } from '@/lib/types'
 
 interface TopNavProps {
-  companyName: string
+  domain: string
   competitors: Competitor[]
-  activeCompetitorIds: string[]
-  activeTab: DashboardTab
-  onTabChange: (tab: DashboardTab) => void
-  onAddCompetitor: () => void
+  selectedIds: string[]
+  showCompetitors: boolean
   onToggleCompetitor: (id: string) => void
-  showTabs: boolean
+  onAddCompetitor: () => void
 }
 
 export default function TopNav({
-  companyName,
+  domain,
   competitors,
-  activeCompetitorIds,
-  activeTab,
-  onTabChange,
-  onAddCompetitor,
+  selectedIds,
+  showCompetitors,
   onToggleCompetitor,
-  showTabs,
+  onAddCompetitor,
 }: TopNavProps) {
-  // Dropdown listing the current active/analyzed competitors with checkbox include/exclude
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [open, setOpen] = useState(false)
 
   return (
     <header className="sticky top-0 z-40 border-b border-grey-200 bg-white">
-      {/* Top row: logo/title block on the left, competitor dropdown (post-dashboard only) + Add Competitor action on the right */}
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ds bg-brand text-white">
-            <Target className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-grey-900">Ad Intelligence</p>
-            <p className="truncate text-xs text-grey-500">{companyName || 'Competitor Tracker'}</p>
-          </div>
-        </div>
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
-          {/* Competitor management dropdown — hidden until the dashboard has loaded */}
-          {showTabs && (
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand">
+            <Megaphone className="h-4 w-4 text-white" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold leading-4 text-grey-900">AdScope</p>
+            <p className="text-[10px] text-grey-500">Competitor Ad Analysis</p>
+          </div>
+          {domain.trim() && (
+            <span className="ml-2 hidden items-center rounded-full bg-grey-50 px-3 py-1 text-xs font-medium text-grey-700 sm:inline-flex">
+              {domain.trim()}
+            </span>
+          )}
+        </div>
+
+        {showCompetitors && (
+          <div className="flex items-center gap-2">
             <div className="relative">
               <button
                 type="button"
-                className="ds-btn-secondary"
-                onClick={() => setIsDropdownOpen((open) => !open)}
-                aria-haspopup="true"
-                aria-expanded={isDropdownOpen}
-                aria-label="Manage competitors"
+                onClick={() => setOpen((prev) => !prev)}
+                className="inline-flex items-center gap-1 rounded-full border border-grey-200 bg-white px-3 py-1.5 text-xs font-medium text-grey-700 transition-colors hover:bg-grey-50"
+                aria-expanded={open}
               >
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Competitors</span>
-                <span className="inline-flex items-center rounded-full bg-brand-surface px-2 py-0.5 text-xs font-semibold text-brand">
-                  {activeCompetitorIds.length}
-                </span>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                />
+                Competitors ({selectedIds.length}/{competitors.length})
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
-              {isDropdownOpen && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-ds-lg border border-grey-200 bg-white p-2 shadow-ds-lg">
-                  <p className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-grey-500">
-                    Active Competitors
-                  </p>
+              {open && (
+                <div className="absolute right-0 top-full z-50 mt-2 max-h-72 w-64 overflow-y-auto rounded-lg border border-grey-200 bg-white p-2 shadow-lg">
                   {competitors.length === 0 ? (
-                    <p className="px-3 pb-2 text-xs text-grey-500">No competitors yet</p>
+                    <p className="px-2 py-1.5 text-xs text-grey-500">No competitors yet</p>
                   ) : (
-                    <ul className="max-h-64 overflow-y-auto">
-                      {competitors.map((competitor) => {
-                        const isActive = activeCompetitorIds.includes(competitor.id)
-                        return (
-                          <li
-                            key={competitor.id}
-                            className="flex items-center gap-3 rounded-ds px-3 py-2 hover:bg-grey-50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isActive}
-                              onChange={() => onToggleCompetitor(competitor.id)}
-                              className="h-4 w-4 shrink-0 cursor-pointer rounded border-grey-300 accent-brand"
-                              aria-label={`Include ${competitor.name} in analysis`}
-                            />
-                            <span className="min-w-0">
-                              <span
-                                className={`block truncate text-sm font-medium ${
-                                  isActive ? 'text-grey-900' : 'text-grey-400'
-                                }`}
-                              >
-                                {competitor.name}
-                              </span>
-                              <span className="block truncate text-xs text-grey-500">{competitor.domain}</span>
-                            </span>
-                          </li>
-                        )
-                      })}
-                    </ul>
+                    competitors.map((competitor) => (
+                      <label
+                        key={competitor.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-grey-700 hover:bg-grey-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(competitor.id)}
+                          onChange={() => onToggleCompetitor(competitor.id)}
+                          className="h-4 w-4 cursor-pointer rounded border-grey-300 accent-brand"
+                          aria-label={`Toggle ${competitor.name}`}
+                        />
+                        <span className="flex-1 truncate">{competitor.name}</span>
+                      </label>
+                    ))
                   )}
                 </div>
               )}
             </div>
-          )}
-          <button
-            type="button"
-            className="ds-btn-primary"
-            onClick={onAddCompetitor}
-            aria-label="Add a competitor"
-          >
-            <Plus className="h-5 w-5" />
-            Add Competitor
-          </button>
-        </div>
-      </div>
-
-      {/* Secondary navigation bar below the top header — visible only after ads are fetched */}
-      {showTabs && (
-        <nav className="border-t border-grey-100 bg-white">
-          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-1 px-4 py-2 sm:px-6">
-            {TAB_ITEMS.map((item) => {
-              const isActive = activeTab === item.id
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onTabChange(item.id)}
-                  className={`inline-flex items-center gap-2 rounded-ds px-4 py-2 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-surface text-brand' : 'text-grey-700 hover:bg-grey-50'
-                  }`}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  <item.icon className={`h-4 w-4 ${isActive ? 'text-brand' : 'text-grey-500'}`} />
-                  {item.label}
-                </button>
-              )
-            })}
+            <button
+              type="button"
+              onClick={onAddCompetitor}
+              className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Competitor
+            </button>
           </div>
-        </nav>
-      )}
+        )}
+      </div>
     </header>
   )
 }
