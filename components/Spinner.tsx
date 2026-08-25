@@ -1,12 +1,10 @@
-interface SpinnerProps {
-  label?: string
-}
-
-export default function Spinner({ label }: SpinnerProps) {
+export default function Spinner() {
   return (
-    <div className="flex flex-col items-center justify-center gap-3" role="status" aria-live="polite">
-      <span className="h-8 w-8 animate-spin rounded-full border-2 border-grey-200 border-t-brand" />
-      {label && <p className="text-sm text-grey-600">{label}</p>}
-    </div>
+    <span
+      className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2"
+      style={{ borderColor: '#E4E5E8', borderTopColor: '#1A73E8' }}
+      role="status"
+      aria-label="Loading"
+    />
   )
 }

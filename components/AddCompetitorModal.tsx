@@ -4,59 +4,52 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 
 interface AddCompetitorModalProps {
-  isOpen: boolean
+  open: boolean
   onClose: () => void
   onAdd: (domain: string) => void
 }
 
-export default function AddCompetitorModal({ isOpen, onClose, onAdd }: AddCompetitorModalProps) {
+export default function AddCompetitorModal({ open, onClose, onAdd }: AddCompetitorModalProps) {
   const [value, setValue] = useState('')
   const [error, setError] = useState('')
 
-  if (!isOpen) return null
+  if (!open) return null
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const trimmed = value.trim()
-    if (!trimmed) {
+    if (!value.trim()) {
       setError('Please enter a competitor domain.')
       return
     }
     setError('')
-    onAdd(trimmed)
+    onAdd(value)
     setValue('')
   }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="fixed inset-0 z-40 flex items-center justify-center px-4"
+      style={{ backgroundColor: 'rgba(44, 45, 51, 0.72)' }}
       role="dialog"
       aria-modal="true"
-      aria-label="Add a competitor"
+      aria-label="Add competitor"
     >
-      <div
-        className="absolute inset-0"
-        style={{ backgroundColor: 'rgba(44, 45, 51, 0.72)' }}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div className="ds-card relative z-10 w-full max-w-md rounded-ds-lg border border-grey-200 bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-grey-900">Add Competitor</h2>
-            <p className="mt-1 text-sm text-grey-600">
-              Add a competitor domain to include it in the analysis.
-            </p>
-          </div>
+      <div className="ds-card w-full max-w-md p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-grey-900">Add Competitor</h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-ds p-1 text-grey-500 transition-colors hover:bg-grey-50"
             aria-label="Close"
+            className="rounded-md p-1 text-grey-500 hover:bg-grey-50"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
+        <p className="mt-1 text-sm text-grey-600">
+          Enter the competitor&apos;s domain. It will be added to the selection so you can re-run the ads
+          analysis.
+        </p>
         <form onSubmit={handleSubmit} className="mt-4">
           <input
             type="text"
@@ -66,7 +59,11 @@ export default function AddCompetitorModal({ isOpen, onClose, onAdd }: AddCompet
             className="ds-input"
             aria-label="Competitor domain"
           />
-          {error && <p className="mt-2 text-sm text-errords-deep">{error}</p>}
+          {error && (
+            <p className="mt-2 text-sm" style={{ color: '#F31A1A' }}>
+              {error}
+            </p>
+          )}
           <div className="mt-4 flex justify-end gap-2">
             <button type="button" className="ds-btn-secondary" onClick={onClose}>
               Cancel

@@ -1,32 +1,52 @@
-# AdScope — Competitor Ad Analysis
+# adscope-competitor-ad-analysis
 
-A modern, responsive single-page dashboard for competitor ad analysis. Enter a domain, list competitors with relevance scores, select one or many, and fetch their ads — rendered as a clean card grid. All analysis APIs are mocked with a 1.5s delay so the UI is fully testable out of the box.
+Fixed the two-step ads analysis flow: Step 1 triggers the Competitor Intelligence Agent Final workflow with the exact keys { companyName, Email, competitorDetails (stringified) } and waits for success; Step 2 fetches the dashboard from the Get workflow with the exact keys { email, company_name } and the correct API key. Loading state stays active across both calls. Files changed: components/DashboardClient.tsx (handleGetAdsForSelected rewritten to chain both workflows with exact key names, success check on the trigger response, and companyDomain passed to Step 2), lib/dashboard-actions.ts (fetchDashboardData now accepts companyName, posts { email, company_name } with API key sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-), plus components/TopNav.tsx, components/AddCompetitorModal.tsx, components/Spinner.tsx kept in sync with the DashboardClient contract. prisma/schema.prisma was not provided in the edit context and no database change was requested, so the live schema file is left untouched to avoid any risk of column drift.
 
 ## Features
 
-- **Add Extra Competitor** CTA opens a modal; submitting auto-fetches that competitor's ads and appends results
-- **Domain input** with "List Competitors" CTA and loading spinner (mock `fetchCompetitors`)
-- **Competitors table** with checkbox selection (single / multiple / select-all), name, domain, and match score badges
-- **Get Ads for Selected** — disabled with no selection; mock `fetchCompetitorAds` renders ads as cards (competitor, headline, copy, platform)
-- Careful loading-state management (`isFetchingCompetitors`, `isFetchingAds`, `isAddingCompetitor`) prevents double-clicks
-- Graceful empty states ("No competitors found", "No ads available")
-- Analysis sessions are logged to Postgres via a Prisma server action
+- Two-step ads analysis: trigger Final workflow, then fetch results from Get workflow
+- Exact payload keys per workflow: { companyName, Email, competitorDetails } for trigger and { email, company_name } for get
+- Loading/disabled state persists across the entire long-running analysis
+- Dashboard populated only from the successful Get workflow response
+- Competitor discovery, ad gallery, competitor intel, and creative analysis tabs
 
 ## Tech Stack
 
-- Next.js 15 (App Router) + React 19
-- TypeScript (strict)
-- Tailwind CSS 3 with Arena Design System tokens (Poppins, brand blue #1A73E8)
-- Prisma + Neon Postgres (analysis session logging)
+- Next.js ^15.3.3 (App Router)
+- React ^19.0.0
+- Tailwind CSS v3
+- TypeScript
+- Prisma + PostgreSQL (Neon on Vercel)
 
-## Local Setup
+## Routes
 
-1. `cp .env.example .env` and set `DATABASE_URL` to a Postgres connection string
-2. `npm install`
-3. `npm run dev` and open `http://localhost:3000/?emailId=you@example.com`
+- `/`
+- `/access-denied`
 
-> The app is gated by an Arena `emailId` query parameter (persisted to a cookie). Without it, the access-denied screen is shown.
+## Getting Started
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Database
+
+1. Copy `.env.example` to `.env` for local development
+2. Set `DATABASE_URL` to your Postgres connection string
+3. Run `npx prisma db push` before `npm run dev` if tables are missing
+
+On Vercel, `DATABASE_URL` is injected when Neon is connected to the project.
+
+## Scripts
+
+- `npm run dev` — start the development server
+- `npm run build` — production build (runs Prisma generate/push when configured)
+- `npm run start` — run the production server locally
 
 ## Deploy
 
-On Vercel with Neon connected, `DATABASE_URL` is injected automatically. The build script runs `prisma generate && prisma db push && next build`.
+This project is intended for deployment on [Vercel](https://vercel.com). Connect the GitHub repository and deploy the `main` branch.

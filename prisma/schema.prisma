@@ -1,11 +1,19 @@
 // **NOTE: dont remove updatedAt in any tables **
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AnalysisSession {
@@ -13,6 +21,7 @@ model AnalysisSession {
   domain    String
   emailId   String
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model SheetExport {
@@ -21,6 +30,7 @@ model SheetExport {
   emailId     String
   payload     String
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
 
 model DashboardSnapshot {
@@ -29,5 +39,5 @@ model DashboardSnapshot {
   domain    String
   payload   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }

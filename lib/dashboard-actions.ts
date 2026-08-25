@@ -16,14 +16,15 @@ import type {
 } from '@/lib/types'
 
 /**
- * DB-backed dashboard workflow. After the ads workflow finishes, this endpoint
- * returns the scraped creatives for the user's email from Postgres
- * (selectedOutputs: postgresql1.rows).
+ * DB-backed dashboard workflow (Competitor Intelligence Agent Get). After the
+ * Final (trigger) workflow finishes, this endpoint returns the scraped
+ * creatives for the user's email + company from Postgres. Payload keys MUST be
+ * exactly { email, company_name }.
  */
 const DASHBOARD_WORKFLOW_ENDPOINT =
   'https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute'
 
-const DASHBOARD_WORKFLOW_API_KEY = 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls'
+const DASHBOARD_WORKFLOW_API_KEY = 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-'
 
 /* Column layout of each creative row inside record.output.rows (stringified array of arrays) */
 const COL_DOMAIN = 0
@@ -132,23 +133,25 @@ function extractCreativeRows(record: Record<string, unknown>): unknown[][] {
 
 /**
  * Fetches the dashboard dataset produced by the ads workflow for this email
- * and maps it into the AdsDashboardData shape used across the UI.
+ * and company, then maps it into the AdsDashboardData shape used across the UI.
+ * The Get workflow expects exactly { email, company_name } — different keys
+ * from the Final (trigger) workflow.
  */
 export async function fetchDashboardData(
   emailId: string,
+  companyName: string,
   selectedCompetitors: Competitor[]
 ): Promise<AdsAnalysisResult> {
   try {
     const response = await fetch(DASHBOARD_WORKFLOW_ENDPOINT, {
       method: 'POST',
       headers: {
-        'X-API-Key': DASHBOARD_WORKFLOW_API_KEY,
         'Content-Type': 'application/json',
+        'X-API-Key': DASHBOARD_WORKFLOW_API_KEY,
       },
       body: JSON.stringify({
         email: emailId,
-        stream: false,
-        selectedOutputs: ['postgresql1.rows'],
+        company_name: companyName,
       }),
       cache: 'no-store',
     })
@@ -346,43 +349,44 @@ export async function fetchDashboardData(
     const imageCreatives = ads.filter((ad) => ad.format === 'image').length
     const videoCreatives = ads.filter((ad) => ad.format === 'video').length
     const activePct = totalAds > 0 ? Math.round((activeCount / totalAds) * 100) : 0
-    const videoPct = totalAds > 0 ? Math.round((videoCreatives / totalAds) * 100) : 0
 
-    const topCompetitor = [...scorecards].sort((a, b) => b.totalAds - a.totalAds)[0]
-    const topCta = ctas[0]
     const signals: StrategicSignal[] = []
-    if (topCompetitor) {
+    const leader = [...scorecards].sort((a, b) => b.totalAds - a.totalAds)[0]
+    if (leader) {
       signals.push({
         type: 'Trend',
-        title: `${topCompetitor.name} leads ad volume`,
-        description: `${topCompetitor.name} is running ${topCompetitor.totalAds} tracked ads — the largest footprint in this competitive set.`,
+        title: `${leader.name} leads ad volume`,
+        description: `${leader.name} is running ${leader.totalAds} tracked ads (${leader.activeAds} live) — the largest footprint in this competitive set.`,
       })
     }
-    signals.push(
-      videoPct >= 30
-        ? {
-            type: 'Alert',
-            title: 'Video-heavy market',
-            description: `${videoPct}% of tracked creatives are video. Competitors are investing heavily in motion formats.`,
-          }
-        : {
-            type: 'Opportunity',
-            title: 'Video gap detected',
-            description: `Only ${videoPct}% of tracked creatives are video — an underused format in this market.`,
-          }
-    )
+    const videoHeavy = scorecards.find((s) => s.formatMix.video >= 40)
+    if (videoHeavy) {
+      signals.push({
+        type: 'Alert',
+        title: `${videoHeavy.name} is betting on video`,
+        description: `Video makes up ${videoHeavy.formatMix.video}% of ${videoHeavy.name}'s creatives — monitor whether this channel shift gains traction.`,
+      })
+    } else {
+      signals.push({
+        type: 'Opportunity',
+        title: 'Video creative gap',
+        description: 'Video is a small share of tracked creatives across this set — a differentiated video push could stand out.',
+      })
+    }
+    const topCta = ctas[0]
     if (topCta) {
       signals.push({
         type: 'Watch',
         title: `"${topCta.label}" dominates CTAs`,
-        description: `The most common call-to-action appears in ${topCta.count} tracked ads across the competitive set.`,
+        description: `"${topCta.label}" appears in ${topCta.count} tracked ads — testing an alternative call-to-action could differentiate your creatives.`,
       })
     }
-    if (activePct >= 80) {
+    const quiet = scorecards.find((s) => s.status === 'PAUSED')
+    if (quiet) {
       signals.push({
-        type: 'Alert',
-        title: 'High market activity',
-        description: `${activePct}% of tracked ads are currently live — competitors are actively spending right now.`,
+        type: 'Opportunity',
+        title: `${quiet.name} has gone quiet`,
+        description: `${quiet.name} has no live ads right now — an aggressive push could capture its audience share.`,
       })
     }
 
@@ -400,7 +404,7 @@ export async function fetchDashboardData(
       keywords,
       ctas,
       themes,
-      signals,
+      signals: signals.slice(0, 4),
       ads,
     }
 
