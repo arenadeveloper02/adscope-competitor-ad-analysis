@@ -28,13 +28,15 @@ export default function AddCompetitorModal({ open, onClose, onAdd }: AddCompetit
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center px-4"
-      style={{ backgroundColor: 'rgba(44, 45, 51, 0.72)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
       role="dialog"
       aria-modal="true"
       aria-label="Add competitor"
     >
-      <div className="ds-card w-full max-w-md p-6">
+      {/* Dimmed backdrop overlay — sits BEHIND the opaque content card */}
+      <div className="fixed inset-0 z-40 bg-black/50" aria-hidden="true" />
+      {/* Solid opaque modal content card — no transparency utilities */}
+      <div className="relative z-50 w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-grey-900">Add Competitor</h3>
           <button

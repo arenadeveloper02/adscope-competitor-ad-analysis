@@ -1,24 +1,21 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T15:34:35.175Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T16:08:40.941Z.
 
 ## Overview
 
-Competitor ad analysis dashboard: discover competitors for any domain, trigger the Competitor Intelligence workflows, and analyze fetched ads across platforms with insights, gallery, intel, and creative analysis views.
+AdScope discovers competitors for any domain and analyzes their ads across platforms with persistent, per-user dashboard sessions.
 
 **Repository:** `adscope-competitor-ad-analysis`  
-**File count:** 39
+**File count:** 40
 
 ## Features
 
-- Domain-based competitor discovery via Arena workflow
-- Two-step ads analysis flow (trigger Final workflow, then fetch Get workflow results)
-- Market insights dashboard with KPI cards, scorecards, heatmap, keywords, CTAs, themes, and signals
-- Ad gallery with search and format filters
-- Competitor intel deep-dive per competitor
-- Creative analysis breakdowns
-- Server-side dashboard snapshot persistence keyed by Arena emailId
-- Analysis session logging and sheet export storage in Postgres
+- Competitor discovery by domain via Arena workflow
+- Two-step ads analysis (trigger + get) with dashboard restore on refresh
+- Opaque Add Competitor modal with dimmed backdrop
+- Server-side session persistence keyed by Arena emailId (DashboardSnapshot)
+- Market insights, ad gallery, competitor intel, and creative analysis tabs
 
 ## Tech Stack
 
@@ -41,8 +38,8 @@ Competitor ad analysis dashboard: discover competitors for any domain, trigger t
 
 - `AppSetting`
 - `AnalysisSession`
-- `SheetExport`
 - `DashboardSnapshot`
+- `SheetExport`
 
 ## File Inventory
 
@@ -79,6 +76,7 @@ Competitor ad analysis dashboard: discover competitors for any domain, trigger t
 - `lib/dashboard-actions.ts`
 - `lib/mock-api.ts`
 - `lib/prisma.ts`
+- `lib/session-actions.ts`
 - `lib/sheet-actions.ts`
 - `lib/snapshot-actions.ts`
 - `lib/types.ts`
@@ -130,6 +128,7 @@ Competitor ad analysis dashboard: discover competitors for any domain, trigger t
 - `lib/dashboard-actions.ts`
 - `lib/mock-api.ts`
 - `lib/prisma.ts`
+- `lib/session-actions.ts`
 - `lib/sheet-actions.ts`
 - `lib/snapshot-actions.ts`
 - `lib/types.ts`
@@ -144,98 +143,44 @@ Competitor ad analysis dashboard: discover competitors for any domain, trigger t
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T15:34:35.175Z
-- **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+- **Updated at:** 2026-08-25T16:08:40.941Z
+- **Request:** Implement the following two fixes in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-PROBLEM TO FIX:
-After clicking "Get Ads for Selected", the dashboard shows "No ads data was found yet for this analysis. Please try again in a moment." The root cause is a two-step API flow that is not correctly sequenced. Fix handleGetAdsForSelected so it correctly chains BOTH APIs with the exact key names each one expects.
+=====================================================
+FIX 1 — "ADD COMPETITOR" MODAL IS TRANSPARENT
+=====================================================
+BUG: The "Add Competitor" modal is rendering with a transparent/see-through container. Its text ("Add Competitor", "Enter the competitor's domain...", the input placeholder "e.g. competitor.com", and the Cancel/Add buttons) visually overlaps the competitor table and background behind it, making it unreadable.
 
-CHANGES TO IMPLEMENT:
+FIX:
+- Locate the "Add Competitor" modal component/JSX (the dialog containing the "Add Competitor" heading, the domain input, and the Cancel / Add buttons).
+- Give the modal's MAIN CONTENT container a SOLID opaque background: bg-white (add dark-theme variant only if the app already uses one, e.g. dark:bg-slate-800). Do NOT use any bg-*/opacity, bg-white/80, or semi-transparent utility on the content card itself.
+- Ensure the content card has: rounded corners (rounded-xl or existing radius), padding (existing p-*), shadow-xl, and z-50.
+- Add a dimmed backdrop OVERLAY behind the modal (a separate absolutely/fixed positioned div): fixed inset-0 bg-black/50 with a lower z-index (e.g. z-40) than the content card, so the card sits opaquely ON TOP of the dimmed backdrop.
+- Ensure the modal content uses relative positioning and is centered (fixed inset-0 flex items-center justify-center) so it is not accidentally transparent due to missing background or stacking context.
+- DO NOT change any of the modal's JavaScript, state, handlers, or the Add/Cancel logic. This is a CSS/className-only fix.
 
-1. Correct the two-step API flow inside handleGetAdsForSelected (in the main component where the "Get Ads for Selected" button lives):
+=====================================================
+FIX 2 — DASHBOARD DATA IS ERASED ON PAGE REFRESH (MUST PERSIST)
+=====================================================
+BUG: When the user refreshes the browser/tab, the entire analysis state is wiped — the company domain, selected competitors, and all dashboard/ads data disappear and the app resets to the initial "Analyze a Domain" screen.
 
-STEP 1 — Trigger the Competitor Intelligence Agent Final workflow (this generates ad data and writes it to the DB; it is long-running, ~4+ minutes).
-  - Endpoint: POST https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute
-  - Headers: 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls'
-  - Payload keys MUST be exactly: companyName, Email, competitorDetails (where competitorDetails is JSON.stringify() of the mapped competitor array with keys name, competitor_domain_url, competitor_description).
-  - Await this call fully. Only proceed to Step 2 after this response returns success (response.ok / data.success === true). Because it takes minutes, keep isFetchingAds = true for the entire duration so the button stays disabled and a loading state is shown.
+FIX: On app load, automatically restore the previous session's data so the user resumes exactly where they left off.
 
-STEP 2 — Fetch the dashboard result from the Competitor Intelligence Agent Get workflow (this reads the finished analysis from the DB):
-  - Endpoint: POST https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute
-  - Headers: 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-'
-  - Payload keys MUST be exactly (lowercase / snake_case — DO NOT reuse the Step 1 payload object): { "email": userEmail, "company_name": companyDomain }
-  - Parse the response and populate the dashboard state (KPI cards, ad cards grid, insights, creative analysis) from this Get response.
+- Implement a useEffect hook (or equivalent init logic) in the main component that fires ONCE on mount.
+- It should re-fetch the most recent analysis for the current user from the Get workflow endpoint (same API already used to populate the dashboard):
+    POST https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute
+    Headers: 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-'
+    Body (exact keys, lowercase/snake_case): { "email": userEmail, "company_name": companyDomain }
+  Use the last-known userEmail and companyDomain — persist those two values in localStorage whenever an analysis is run, and read them back on mount so the refresh fetch knows which record to load. Order/pick the MOST RECENT run for that user (backend already returns latest; if multiple, use the newest by last_updated).
+- If a recent run is returned, restore ALL of: the company domain input value, the selected competitors (checkbox selections), and every dashboard visual (KPI cards, ad cards grid, Insights, Creative Analysis). Reveal the dashboard tabs and hide the initial empty state — exactly as if the data had just loaded from Get Ads for Selected.
+- If no prior run exists (empty response / first-time user), fall back to the current initial screen — do not error.
+- Persist the minimal restore keys in localStorage (e.g. companyDomain and userEmail, and optionally the last dashboard payload as a cache for instant paint before the network refetch resolves). Rehydrate from localStorage first for instant render, then refresh from the Get API.
+- Do NOT change the existing handleGetAdsForSelected two-step flow logic — only ADD the persistence/restore-on-mount behavior and the localStorage writes at the point where an analysis successfully completes.
 
-EXACT LOGIC TO USE:
-
-const handleGetAdsForSelected = async () => {
-  if (!selectedCompetitors || selectedCompetitors.length === 0) return;
-
-  setIsFetchingAds(true);
-  try {
-    // 1. Map to exact API schema for the Final (trigger) workflow
-    const formattedCompetitors = selectedCompetitors.map((comp) => ({
-      name: comp.competitorName || comp.name,
-      competitor_domain_url: comp.competitorDomain || comp.domain,
-      competitor_description: comp.description || `Competitor to ${companyDomain}`
-    }));
-
-    const triggerPayload = {
-      companyName: companyDomain,
-      Email: userEmail,
-      competitorDetails: JSON.stringify(formattedCompetitors)
-    };
-
-    // STEP 1: Trigger the long-running Final workflow and WAIT for it to finish
-    const triggerResponse = await fetch('https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls',
-      },
-      body: JSON.stringify(triggerPayload)
-    });
-
-    if (!triggerResponse.ok) throw new Error(`Trigger API Error: ${triggerResponse.status}`);
-    const triggerData = await triggerResponse.json();
-    if (!triggerData || triggerData.success !== true) throw new Error('Trigger workflow did not complete successfully');
-
-    // STEP 2: Fetch the dashboard result from the Get workflow (DIFFERENT payload keys)
-    const getPayload = {
-      email: userEmail,
-      company_name: companyDomain
-    };
-
-    const getResponse = await fetch('https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-',
-      },
-      body: JSON.stringify(getPayload)
-    });
-
-    if (!getResponse.ok) throw new Error(`Get API Error: ${getResponse.status}`);
-    const dashboardData = await getResponse.json();
-
-    // 3. Populate dashboard state from dashboardData (KPI cards, ad cards, insights, creative analysis)
-    //    and reveal the navigation tabs + dashboard sections; hide the initial input + competitor table.
-
-  } catch (error) {
-    console.error('Error running ad analysis flow:', error);
-  } finally {
-    setIsFetchingAds(false);
-  }
-};
-
-2. Do NOT reuse the Step 1 payload object for Step 2. The Final workflow uses { companyName, Email, competitorDetails } and the Get workflow uses { email, company_name }. Using the wrong keys is what returns empty data.
-
-3. Since Step 1 is long-running, ensure the loading/disabled state (isFetchingAds) remains true across BOTH calls, and only the successful Get response reveals the dashboard. If the Get response contains no ads, keep the existing "No ads data was found yet" message.
-
-4. Bind handleGetAdsForSelected to the button onClick. Keep the button disabled when isFetchingAds is true or selectedCompetitors.length === 0.
-
-CONSTRAINTS:
-- Only touch the files/functions directly related to the points above.
+=====================================================
+CONSTRAINTS
+=====================================================
+- Only touch the files/functions directly related to the two points above.
 - Do not change variable names, code style, or structure outside the scope of these changes.
 - Do not add extra features, optimizations, or refactors that weren't requested.
 - If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.

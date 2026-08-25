@@ -24,15 +24,6 @@ model AnalysisSession {
   updatedAt DateTime @default(now()) @updatedAt
 }
 
-model SheetExport {
-  id          String   @id @default(cuid())
-  companyName String
-  emailId     String
-  payload     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-}
-
 model DashboardSnapshot {
   id        String   @id @default(cuid())
   emailId   String   @unique
@@ -40,4 +31,13 @@ model DashboardSnapshot {
   payload   String
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+}
+
+model SheetExport {
+  id          String   @id @default(cuid())
+  companyName String
+  emailId     String
+  payload     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
