@@ -21,6 +21,8 @@ export interface CompetitorAd {
   date?: string
   cta?: string
   landingPage?: string
+  /** Keyword data parsed from the Get workflow response for this creative */
+  keywords?: string[]
 }
 
 export interface ActionResult {

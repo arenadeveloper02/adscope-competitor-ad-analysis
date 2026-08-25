@@ -16,6 +16,16 @@ export function deriveAdFormat(ad: CompetitorAd): AdFormat {
   return formats[hash % formats.length] ?? 'text'
 }
 
+/**
+ * Resolves the ad's real destination/landing URL from the ads data. Returns
+ * null when the ad has no destination so the card stays non-clickable.
+ */
+function resolveDestinationUrl(ad: CompetitorAd): string | null {
+  const raw = ad.landingPage?.trim()
+  if (!raw) return null
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+}
+
 const platformStyles: Record<AdPlatform, string> = {
   'Google Ads': 'bg-brand-surface text-brand',
   Meta: 'bg-success-surface text-success-deep',
@@ -31,9 +41,10 @@ export default function AdCard({ ad }: AdCardProps) {
   const format = deriveAdFormat(ad)
   const isActive = ad.active ?? true
   const FormatIcon = format === 'image' ? ImageIcon : format === 'video' ? Video : FileText
+  const destUrl = resolveDestinationUrl(ad)
 
-  return (
-    <article className="ds-card flex h-full flex-col p-4">
+  const cardBody = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${platformStyles[ad.platform]}`}
@@ -64,6 +75,24 @@ export default function AdCard({ ad }: AdCardProps) {
           </span>
         )}
       </div>
-    </article>
+    </>
   )
+
+  // When the ad has a real destination URL, the entire card (including the CTA
+  // pill and the competitor/domain text) opens it in a new browser tab.
+  if (destUrl) {
+    return (
+      <a
+        href={destUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ds-card flex h-full cursor-pointer flex-col p-4 transition-shadow hover:shadow-md"
+        title={`Open ad destination: ${destUrl}`}
+      >
+        {cardBody}
+      </a>
+    )
+  }
+
+  return <article className="ds-card flex h-full flex-col p-4">{cardBody}</article>
 }

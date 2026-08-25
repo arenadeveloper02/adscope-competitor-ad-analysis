@@ -206,6 +206,12 @@ export async function fetchDashboardData(
         const cta = cell(row, COL_CTA)
         const landingPage = cell(row, COL_LANDING_PAGE)
 
+        // Per-ad keyword data from the Get response (used by Creative Analysis)
+        const rowKeywords = cell(row, COL_KEYWORDS)
+          .split(',')
+          .map((k) => k.trim())
+          .filter(Boolean)
+
         ads.push({
           id: `ad-${competitorId}-${adId}-${rowIndex}`,
           competitorId,
@@ -218,13 +224,10 @@ export async function fetchDashboardData(
           date: startDate || undefined,
           cta: cta || undefined,
           landingPage: landingPage || undefined,
+          keywords: rowKeywords.length > 0 ? rowKeywords : undefined,
         })
 
-        cell(row, COL_KEYWORDS)
-          .split(',')
-          .map((k) => k.trim())
-          .filter(Boolean)
-          .forEach((k) => keywordCounts.set(k, (keywordCounts.get(k) ?? 0) + 1))
+        rowKeywords.forEach((k) => keywordCounts.set(k, (keywordCounts.get(k) ?? 0) + 1))
         cell(row, COL_VALUE_PROPS)
           .split(';')
           .map((t) => t.trim())
@@ -348,55 +351,48 @@ export async function fetchDashboardData(
     const activeCount = ads.filter((ad) => ad.active ?? true).length
     const imageCreatives = ads.filter((ad) => ad.format === 'image').length
     const videoCreatives = ads.filter((ad) => ad.format === 'video').length
-    const activePct = totalAds > 0 ? Math.round((activeCount / totalAds) * 100) : 0
 
     const signals: StrategicSignal[] = []
-    const leader = [...scorecards].sort((a, b) => b.totalAds - a.totalAds)[0]
-    if (leader) {
+    const sortedBuckets = [...bucketList].sort((a, b) => b.ads.length - a.ads.length)
+    const topBucket = sortedBuckets[0]
+    if (topBucket) {
       signals.push({
         type: 'Trend',
-        title: `${leader.name} leads ad volume`,
-        description: `${leader.name} is running ${leader.totalAds} tracked ads (${leader.activeAds} live) — the largest footprint in this competitive set.`,
+        title: `${topBucket.name} leads ad volume`,
+        description: `${topBucket.name} is running ${topBucket.ads.length} tracked ads — the largest footprint in this competitive set.`,
       })
     }
-    const videoHeavy = scorecards.find((s) => s.formatMix.video >= 40)
-    if (videoHeavy) {
-      signals.push({
-        type: 'Alert',
-        title: `${videoHeavy.name} is betting on video`,
-        description: `Video makes up ${videoHeavy.formatMix.video}% of ${videoHeavy.name}'s creatives — monitor whether this channel shift gains traction.`,
-      })
-    } else {
+    if (videoCreatives / Math.max(1, totalAds) < 0.2) {
       signals.push({
         type: 'Opportunity',
-        title: 'Video creative gap',
-        description: 'Video is a small share of tracked creatives across this set — a differentiated video push could stand out.',
+        title: 'Video creatives are underused',
+        description: `Only ${videoCreatives} of ${totalAds} tracked ads are video — investing in video could differentiate your creative mix.`,
       })
     }
-    const topCta = ctas[0]
-    if (topCta) {
+    const topCtaUsage = ctas[0]
+    if (topCtaUsage) {
       signals.push({
         type: 'Watch',
-        title: `"${topCta.label}" dominates CTAs`,
-        description: `"${topCta.label}" appears in ${topCta.count} tracked ads — testing an alternative call-to-action could differentiate your creatives.`,
+        title: `"${topCtaUsage.label}" dominates CTAs`,
+        description: `The most common call-to-action across the tracked set is "${topCtaUsage.label}" (${topCtaUsage.count} ads).`,
       })
     }
-    const quiet = scorecards.find((s) => s.status === 'PAUSED')
-    if (quiet) {
+    const pausedCompetitor = scorecards.find((s) => s.status === 'PAUSED')
+    if (pausedCompetitor) {
       signals.push({
-        type: 'Opportunity',
-        title: `${quiet.name} has gone quiet`,
-        description: `${quiet.name} has no live ads right now — an aggressive push could capture its audience share.`,
+        type: 'Alert',
+        title: `${pausedCompetitor.name} has paused its ads`,
+        description: `${pausedCompetitor.name} currently has no live ads among its ${pausedCompetitor.totalAds} tracked creatives.`,
       })
     }
 
     const dashboard: AdsDashboardData = {
       kpis: {
         totalAds,
-        activePct,
+        activePct: totalAds > 0 ? Math.round((activeCount / totalAds) * 100) : 0,
         imageCreatives,
         videoCreatives,
-        competitorCount: scorecards.length,
+        competitorCount: bucketList.length,
       },
       scorecards,
       heatmap,
@@ -404,10 +400,9 @@ export async function fetchDashboardData(
       keywords,
       ctas,
       themes,
-      signals: signals.slice(0, 4),
+      signals,
       ads,
     }
-
     return { success: true, dashboard }
   } catch {
     return {

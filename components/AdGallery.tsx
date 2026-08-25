@@ -3,7 +3,6 @@
 import {
   Activity,
   BarChart3,
-  Calendar,
   Image as ImageIcon,
   Images,
   MousePointerClick,
@@ -28,8 +27,6 @@ const FORMAT_FILTERS: Array<{ id: 'all' | AdFormat; label: string }> = [
   { id: 'text', label: 'Text' },
   { id: 'video', label: 'Video' },
 ]
-
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const SHARE_COLORS = ['#1A73E8', '#FB8145', '#B364D7', '#00A7D6', '#DFC612', '#F8528F', '#3BC884', '#6D717F']
 
@@ -81,28 +78,6 @@ export default function AdGallery({
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count)
   const topCta = ctaEntries[0] ?? null
-
-  const timelineMap = new Map<string, { label: string; order: number; count: number }>()
-  ads.forEach((ad) => {
-    if (!ad.date) return
-    const d = new Date(ad.date)
-    if (Number.isNaN(d.getTime())) return
-    const key = `${d.getFullYear()}-${d.getMonth()}`
-    const existing = timelineMap.get(key)
-    if (existing) {
-      existing.count += 1
-    } else {
-      timelineMap.set(key, {
-        label: MONTHS_SHORT[d.getMonth()] ?? '',
-        order: d.getFullYear() * 12 + d.getMonth(),
-        count: 1,
-      })
-    }
-  })
-  const timeline = Array.from(timelineMap.values())
-    .sort((a, b) => a.order - b.order)
-    .slice(-8)
-  const timelineMax = Math.max(1, ...timeline.map((t) => t.count))
 
   const kpiCards = [
     { label: 'Total Ads Tracked', value: String(totalAds), icon: BarChart3 },
@@ -164,7 +139,8 @@ export default function AdGallery({
             ))}
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Secondary metrics row — Timeline removed; balanced 3-card layout */}
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {/* Activity donut */}
             <div className="ds-card p-4">
               <div className="flex items-center gap-2 text-grey-500">
@@ -240,33 +216,6 @@ export default function AdGallery({
                 <p className="mt-3 text-xs text-grey-500">No CTA data available</p>
               )}
             </div>
-
-            {/* Timeline */}
-            <div className="ds-card p-4">
-              <div className="flex items-center gap-2 text-grey-500">
-                <Calendar className="h-4 w-4" />
-                <span className="text-xs font-medium tracking-wide">Timeline</span>
-              </div>
-              {timeline.length === 0 ? (
-                <p className="mt-3 text-xs text-grey-500">No date data available</p>
-              ) : (
-                <div className="mt-3 flex h-16 items-end gap-1">
-                  {timeline.map((bucket) => (
-                    <div key={`${bucket.order}`} className="flex flex-1 flex-col items-center gap-1">
-                      <div
-                        className="w-full rounded-t-sm"
-                        style={{
-                          height: `${Math.max(8, Math.round((bucket.count / timelineMax) * 48))}px`,
-                          backgroundColor: '#1A73E8',
-                        }}
-                        title={`${bucket.label}: ${bucket.count} ads`}
-                      />
-                      <span className="text-[9px] font-medium uppercase text-grey-500">{bucket.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Competitor Ad Share */}
@@ -295,7 +244,7 @@ export default function AdGallery({
                     style={{ backgroundColor: SHARE_COLORS[index % SHARE_COLORS.length] ?? '#1A73E8' }}
                   />
                   {entry.name}
-                  <span className="font-semibold text-grey-900">({entry.count})</span>
+                  <span className="font-semibold text-grey-900">{entry.count}</span>
                 </span>
               ))}
             </div>
@@ -303,17 +252,13 @@ export default function AdGallery({
         </div>
       )}
 
-      <p className="mt-3 text-xs text-grey-500">
-        Showing {filtered.length} of {ads.length} ads
-      </p>
-
       {filtered.length === 0 ? (
-        <div className="ds-card mt-3 p-10 text-center">
+        <div className="ds-card mt-6 p-10 text-center">
           <p className="text-sm font-medium text-grey-700">No ads match your filters</p>
-          <p className="mt-1 text-xs text-grey-500">Try a different search term or format.</p>
+          <p className="mt-1 text-xs text-grey-500">Try a different search term or format filter.</p>
         </div>
       ) : (
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((ad) => (
             <AdCard key={ad.id} ad={ad} />
           ))}

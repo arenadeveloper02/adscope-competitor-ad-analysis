@@ -1,10 +1,10 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T17:00:20.667Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T17:36:32.885Z.
 
 ## Overview
 
-Competitor ad analysis dashboard: discover competitors for any domain, run ads intelligence workflows, and explore market insights, ad galleries, competitor intel, and creative analysis.
+Competitor ad analysis dashboard: discover competitors for any domain, trigger the ads intelligence workflow, and explore market insights, ad gallery, competitor intel, and creative analysis.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 40
@@ -12,11 +12,10 @@ Competitor ad analysis dashboard: discover competitors for any domain, run ads i
 ## Features
 
 - Domain-based competitor discovery via Arena workflow
-- Manual competitor addition with opaque centered modal
-- Ads analysis trigger + polling workflow
-- Market Insights dashboard with KPIs, scorecards, and heatmap
-- Ad Gallery with search and format filters
-- Competitor Intel and Creative Analysis tabs
+- Two-step trigger + poll ads analysis flow
+- Market Insights dashboard with KPIs, scorecards, heatmap
+- Ad Gallery with search, format filters, and clickable ad destinations
+- Fully dynamic Creative Analysis computed from live ads data
 - Server-side session snapshot persistence keyed by Arena emailId
 
 ## Tech Stack
@@ -145,24 +144,48 @@ Competitor ad analysis dashboard: discover competitors for any domain, run ads i
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T17:00:20.667Z
-- **Request:** Fix ONLY the "Add Competitor" modal transparency bug. The modal is still rendering completely see-through: its heading ("Add Competitor"), the "Manually add a competitor..." text, the COMPETITOR NAME / COMPETITOR DOMAIN / DESCRIPTION labels, the input placeholders, and the Cancel / Add Competitor buttons are all overlapping and bleeding through onto the competitor table behind it, making everything unreadable. The previous fix did not work because the modal's content card has no opaque background fill and there is no dimming backdrop. Apply the exact fix below. Do not modify, refactor, remove, or clean up any other part of the code. Preserve all existing formatting, naming, comments, and logic. Do NOT change any JavaScript, state, handlers, or the Add/Cancel logic — this is a className/CSS-only change.
+- **Updated at:** 2026-08-25T17:36:32.885Z
+- **Request:** Implement the following changes. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
-EXACT FIX — find the "Add Competitor" modal JSX (the element wrapping the "Add Competitor" heading, the domain/name/description inputs, and the Cancel / Add Competitor buttons) and restructure its wrappers so it renders as an OPAQUE centered dialog over a DIMMED backdrop:
+=====================================================
+1. CREATIVE INSIGHTS / CREATIVE ANALYSIS VISUALS — MAKE FULLY DYNAMIC
+=====================================================
+The Creative Analysis tab visuals must all be driven by the REAL data returned from the Get workflow response (the ads/dashboard payload), not any hardcoded/mock/placeholder values. Make these four visual groups fully dynamic and computed from the actual ads dataset for the selected competitors:
 
-1. OUTER WRAPPER (backdrop + centering) — the outermost modal div must be:
-   className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-   (fixed full-screen, high z-index, dark semi-transparent backdrop that dims the page, flex-centered).
+  (image 1) The 4 summary DONUT cards at the top — "Have Image Creative", "Have Video Creative", "Have Clear CTA", "Have Keyword Data". Each percentage ring and its "X of N ads" subtitle must be computed from the real ads array: percentage = (count of ads matching that condition / total ads) * 100, rounded. N = total ads. The ring fill must reflect that computed percentage dynamically.
 
-2. INNER CONTENT CARD (the actual dialog box) — must be a DIRECT child of the wrapper and have a FULLY OPAQUE solid background and its own stacking:
-   className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-2xl p-6"
-   - The background MUST be a solid opaque color: bg-white (add dark:bg-slate-900 only if the app already has a dark theme). Do NOT use bg-white/xx, backdrop-blur alone, opacity-*, or any semi-transparent utility on this card.
-   - Keep the existing inner content (heading, description, labels, inputs, buttons) exactly as-is inside this card — do not change their markup or text.
+  (image 2) The per-competitor KEYWORD drill-down columns ("Top Keywords" horizontal stacked bar + the three-column grid of individual keyword search volumes per competitor) — the keywords, their counts/volumes, and the bar widths must come from the real per-competitor keyword data in the response.
 
-3. Ensure there is exactly ONE such wrapper+card structure (no leftover transparent outer container). If the current modal already has a wrapper, MERGE these classes into it rather than adding a duplicate. The end result: a dark dimmed overlay covers the whole screen, and a solid white card floats opaquely in the center so nothing behind it shows through.
+  (image 3) The "Messaging Language" colorful tag cloud AND the "Common Headline Openers" grid — the words/phrases and their ad counts ("X ads") must be derived from the real headlines/copy in the ads dataset.
 
-CONSTRAINTS:
-- Only touch the "Add Competitor" modal's container/wrapper className(s). Nothing else.
-- Do not change variable names, code style, JS logic, or any other component.
-- Do not add features or refactors.
-- After implementing, list exactly which file and lines were changed, and why.
+  (image 4) The per-competitor "unique headlines" columns ("10 unique headlines") — list the actual unique headlines pulled from each competitor's ads in the response.
+
+For every one of the above: if a value is missing in the data, compute a safe fallback (0 / empty) rather than showing a hardcoded number. No static demo numbers should remain — everything renders from the live Get response.
+
+=====================================================
+2. AD GALLERY / CREATIVE SECTION — REMOVE TIMELINE VISUAL
+=====================================================
+In the Ad Gallery summary dashboard secondary metrics row, REMOVE the "Timeline" bar visual entirely (the timeline bar chart component). Keep the other secondary metrics (Activity donut/progress, Creative Mix, Top CTA) intact and reflow the row so it looks balanced without the timeline. Do not remove anything else.
+
+=====================================================
+3. RENAME "Competitor Intel" -> "Competitors"
+=====================================================
+Find every UI label/tab/heading/button text that reads "Competitor Intel" (or "Compititor Intel") and rename the visible text to "Competitors". This is a display-text-only change — do NOT rename any variables, state keys, function names, routes, or props; only the human-readable label string.
+
+=====================================================
+4. MAKE AD CARDS / CTA LINKS CLICKABLE TO THE AD DESTINATION (image 5)
+=====================================================
+Every ad card and its CTA link (the "Learn more", "See details", or the domain text like "tandemdiabetes.com" shown on each ad card — image 5) must be CLICKABLE and, when clicked, open that ad's destination/landing URL in a new browser tab.
+  - Use the ad's real destination URL field from the ads data (e.g. ad.destinationUrl || ad.landingUrl || ad.finalUrl || ad.url || ad.link — whichever the Get response provides for that ad).
+  - Wrap the clickable element in an anchor or add an onClick that does window.open(destUrl, '_blank', 'noopener,noreferrer').
+  - Apply cursor-pointer and keep the existing external-link icon. If an ad has no destination URL, leave it non-clickable (do not render a broken link).
+  - Do this for ALL such cards/links across the ad gallery so each one navigates to its own ad's destination.
+
+=====================================================
+CONSTRAINTS
+=====================================================
+- Only touch the files/functions directly related to the five points above.
+- Do not change variable names, code style, or structure outside the scope of these changes.
+- Do not add extra features, optimizations, or refactors that weren't requested.
+- Keep all previously working behavior (the trigger+poll flow, the opaque Add Competitor modal, refresh persistence) intact.
+- After implementing, list exactly which files and lines were changed, and why.

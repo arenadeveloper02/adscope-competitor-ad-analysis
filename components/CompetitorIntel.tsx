@@ -81,7 +81,7 @@ export default function CompetitorIntel({
     <div className="mt-8">
       <div className="flex items-center gap-2">
         <Users className="h-5 w-5 text-grey-600" />
-        <h2 className="text-lg font-semibold text-grey-900">Competitor Intel</h2>
+        <h2 className="text-lg font-semibold text-grey-900">Competitors</h2>
       </div>
 
       {/* Competitor switcher pills */}
