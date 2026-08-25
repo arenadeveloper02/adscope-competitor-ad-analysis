@@ -1,21 +1,23 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T17:42:17.082Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T17:47:19.288Z.
 
 ## Overview
 
-Build-failure fix: restored the AdIntelligenceReport model to prisma/schema.prisma so `prisma db push` no longer attempts to DROP the non-empty AdIntelligenceReport table (4 live rows). The model was missing from the regenerated schema, which made Prisma treat the live table as orphaned and schedule a destructive drop. Re-adding the model (with all non-key fields nullable and timestamps defaulted) makes the diff a no-op/additive-only change, so the build (`prisma generate && prisma db push && next build`) completes without --accept-data-loss. No UI, actions, workflow, or persistence code was touched. Files changed: prisma/schema.prisma (re-added `model AdIntelligenceReport` block — before: model absent entirely, causing DROP TABLE; after: model present with id @id @default(autoincrement()), nullable emailId/companyName/domain/payload/output columns, createdAt @default(now()) — nullable columns and defaults mean push is executable against existing rows with zero data loss). app/not-found.tsx is echoed unchanged per repo requirements.
+Build-failure fix only: restored the AdIntelligenceReport model to prisma/schema.prisma so `prisma db push` no longer attempts to DROP the live `AdIntelligenceReport` table (which holds 4 real rows). The regenerated schema had omitted this model entirely, causing Prisma to plan a destructive DROP TABLE and fail the deploy with the --accept-data-loss warning. Fix: re-added the model with its original table name (no @@map rename), id primary key, emailId/companyName/domain scoping columns, payload text column, and createdAt/updatedAt timestamps — all data-bearing columns restored with their prior names/types, and every re-added scalar is either the primary key, nullable, or carries @default(...) / @updatedAt @default(now()) so the diff is additive-only or a no-op against the existing rows. AnalysisSession, DashboardSnapshot, and SheetExport models are unchanged (byte-identical field lines) and continue to back logAnalysis(), the snapshot persistence, and sheet exports. The build script remains `prisma generate && prisma db push && next build` with NO --accept-data-loss and NO --force-reset. No UI, actions, types, or logic files were touched. Files changed: prisma/schema.prisma (restored AdIntelligenceReport model — before: model absent, triggering DROP TABLE; after: model present matching the live table, so prisma db push detects no destructive change). app/not-found.tsx is echoed with the canonical zero-import template as required by structure validation.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 40
 
 ## Features
 
-- Competitor discovery by domain via Arena workflow
-- Ads dashboard with KPIs, scorecards, heatmap, CTAs, themes, and signals
-- DB-backed session snapshots keyed by Arena emailId (refresh-safe persistence)
-- Sheet export of dashboard datasets
-- Arena email gate with access-denied page and iframe-safe headers
+- Competitor discovery for any domain via Arena workflow
+- Ads analysis dashboard with KPIs, scorecards, heatmap, CTAs, and messaging themes
+- Ad gallery with per-platform creatives
+- Creative analysis with keyword insights
+- DB-backed session snapshots keyed by Arena emailId (refresh-safe)
+- Sheet export of dashboard data
+- Ad intelligence report storage preserved (AdIntelligenceReport table restored non-destructively)
 
 ## Tech Stack
 
@@ -143,7 +145,7 @@ Build-failure fix: restored the AdIntelligenceReport model to prisma/schema.pris
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T17:42:17.082Z
+- **Updated at:** 2026-08-25T17:47:19.288Z
 - **Request:** FIX THE BUILD FAILURE ONLY. Do not modify, refactor, remove, or "clean up" any other part of the code. Preserve all existing formatting, naming, comments, and logic. Do NOT touch any UI components, the Creative Analysis visuals, the ad-card links, the Add Competitor modal, the trigger+poll flow, or refresh persistence — those are all working and must stay exactly as they are.
 
 PROBLEM:

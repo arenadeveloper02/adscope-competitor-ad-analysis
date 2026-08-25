@@ -13,6 +13,7 @@ model AnalysisSession {
   domain    String
   emailId   String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
 }
 
 model DashboardSnapshot {
@@ -30,23 +31,23 @@ model SheetExport {
   emailId     String
   payload     String
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
 }
 
-// RESTORED: this table already exists in the live Neon database and holds real
-// rows (4 at time of fix). It was accidentally removed from a regenerated
-// schema, which made `prisma db push` schedule a destructive DROP TABLE and
-// fail the Vercel build with a data-loss warning. Re-adding the model keeps
-// the diff non-destructive. The table is written by the external Arena ads
-// workflow (trigger + Get flow) — application code does not query it directly,
-// but it MUST remain declared here so Prisma never tries to drop it.
-// All non-key fields are nullable and timestamps carry @default(now()) so the
-// push is executable against existing rows with zero backfill required.
+// RESTORED: this model was accidentally dropped from a regenerated schema,
+// which made `prisma db push` plan a destructive DROP of the live
+// `AdIntelligenceReport` table (4 existing rows). Re-adding the model with
+// its original table name and column names/types makes the diff a no-op /
+// additive-only, so the deploy succeeds without --accept-data-loss.
+// Every non-key column is nullable or has a default, so no backfill is
+// required against existing rows. Do NOT remove or rename this model.
 model AdIntelligenceReport {
   id          Int      @id @default(autoincrement())
   emailId     String?
   companyName String?
   domain      String?
   payload     String?
-  output      String?
+  status      String?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
 }
