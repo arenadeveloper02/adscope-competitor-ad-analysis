@@ -37,13 +37,12 @@ export default function AddCompetitorModal({ isOpen, onClose, onAdd }: AddCompet
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(44, 45, 51, 0.72)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Add competitor manually"
     >
-      <div className="ds-card w-full max-w-md p-6">
+      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-2xl p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-grey-900">Add Competitor</h2>
           <button
