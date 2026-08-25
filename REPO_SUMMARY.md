@@ -1,22 +1,21 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-24T16:28:17.948Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T05:38:32.545Z.
 
 ## Overview
 
-AdScope — Competitor Ad Analysis. Edit: the top-header Active Competitors dropdown checkboxes now update the selected competitors state (selectedIds) and any change immediately re-displays the competitor selection table with the 'Get Ads for Selected' button so the workflow can be re-triggered with the modified selection. Files changed: components/DashboardClient.tsx (handleToggleCompetitorActive now toggles selectedIds and sets isPickingMore(true); TopNav now receives activeCompetitorIds={selectedIds}); prisma/schema.prisma echoed unchanged (additive-safe). TopNav already had checkbox rows, conditional dropdown/tab visibility, and no Sync/Sheet buttons; AdGallery search already applies left padding; AdsDashboard Active Ads KPI already shows the absolute count — those files were left untouched.
+Competitor ad intelligence dashboard: discover competitors for any domain, select them, and trigger an ads analysis workflow with persisted session snapshots.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 38
 
 ## Features
 
-- Competitor discovery for any domain via workflow API
-- Competitor selection table with Get Ads workflow trigger
-- Header competitor dropdown with checkboxes that update selection and reveal the Get Ads section
-- Conditional visibility: setup view before analysis, tabbed dashboard after ads fetch
-- Insights, Ad Gallery, Competitor Intel, and Creative Analysis tabs
-- Server-side session snapshot persistence keyed by Arena emailId
+- Domain-based competitor discovery via Arena workflow
+- Competitor selection table with Get Ads for Selected workflow trigger
+- Ads dashboard with KPIs, scorecards, heatmap, themes, and signals
+- Ad gallery with search and format filters
+- Server-side dashboard snapshot persistence keyed by Arena emailId
 
 ## Tech Stack
 
@@ -37,6 +36,7 @@ AdScope — Competitor Ad Analysis. Edit: the top-header Active Competitors drop
 
 ## Database Models
 
+- `AppSetting`
 - `AnalysisSession`
 - `SheetExport`
 - `DashboardSnapshot`
@@ -139,52 +139,71 @@ AdScope — Competitor Ad Analysis. Edit: the top-header Active Competitors drop
 
 ## Latest Change
 
-- **Updated at:** 2026-08-24T16:28:17.948Z
+- **Updated at:** 2026-08-25T05:38:32.545Z
 - **Request:** Implement the following functionality in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 Changes to implement:
 
-Competitor Management Dropdown UI (Checkboxes):
+Implement handleGetAdsForSelected API Function:
 
-Update the "Active Competitors" dropdown menu in the top header. Replace the 'X' (remove) icon next to each competitor with a standard Checkbox.
+Inside the main component (where the "Get Ads for Selected" button lives), implement the exact API execution logic provided below.
 
-Behavior: Modifying these checkboxes updates the selected competitors state.
+Crucial Payload Requirement: You must map the selected competitors from the UI state to match the exact keys expected by the API (name, competitor_domain_url, competitor_description).
 
-Crucial Visibility Trigger: If the user makes any changes within this dropdown (checking or unchecking a competitor), the "Get Ads for Selected" button/section must immediately become visible again so the user can re-trigger the API workflow with the newly modified selection.
+Stringify Requirement: You must JSON.stringify() the competitorDetails array before adding it to the main payload, as the API expects this specific field to be a stringified array, not a native JSON array.
 
-Conditional Visibility of Competitor Dropdown:
+Integrate the exact Code Snippet:
 
-Hide the "Active Competitors" dropdown list (and its parent trigger button/icon in the top header) on the initial load.
+Use the following logic for the API call:
 
-This dropdown must only become visible after the user completes the initial setup phase (i.e., after they select competitors from the main table and click "Get Ads for Selected", and the dashboard data successfully loads).
+const handleGetAdsForSelected = async () => {
+  if (!selectedCompetitors || selectedCompetitors.length === 0) return;
 
-Top Header & Navigation Restructuring:
+  setIsFetchingAds(true);
+  try {
+    // 1. Map to exact API schema
+    const formattedCompetitors = selectedCompetitors.map((comp) => ({
+      name: comp.competitorName || comp.name, 
+      competitor_domain_url: comp.competitorDomain || comp.domain, 
+      competitor_description: comp.description || `Competitor to ${companyDomain}`
+    }));
 
-Restructure the top header to only include the logo/title block on the left and the "+ Add Competitor" action button (and the dropdown, once visible) on the right.
+    // 2. Construct payload with double-stringified array
+    const payload = {
+      companyName: companyDomain,
+      Email: userEmail,
+      competitorDetails: JSON.stringify(formattedCompetitors)
+    };
 
-Completely remove the "Sync" and "Sheet" buttons from the application.
+    // 3. Execute POST request
+    const response = await fetch('https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls',
+      },
+      body: JSON.stringify(payload)
+    });
 
-Move the main navigation tabs (Insights, Ad Gallery, Competitors, Creative Analysis) out of the top header and place them in a secondary navigation bar positioned directly below the top header.
+    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+    const data = await response.json();
 
-Conditional Visibility of Navigation & Dashboard:
+    // 4. Proceed to fetch Dashboard Data from DB here
 
-Hide the main navigation tabs and all corresponding dashboard sections on initial load. They must only become visible after the user successfully fetches data by clicking "Get Ads for Selected".
+  } catch (error) {
+    console.error("Error triggering ad workflow:", error);
+  } finally {
+    setIsFetchingAds(false);
+  }
+};
 
-Toggle Initial Input & Competitor Table Views:
+Button Visibility & Disabled State:
 
-Once the dashboard data loads and becomes visible, hide/unmount the initial "Analyze a Domain" input block and the "Competitors" selection table.
+Bind this function to the onClick event of the "Get Ads for Selected" button.
 
-Add Competitor Flow: When the user clicks the top header's "+ Add Competitor" button, add the new competitor to the state and re-display the Competitors selection table so the user can select them. The "Get Ads for Selected" button must also be visible during this state.
+Ensure the button is disabled when isFetchingAds is true, or when selectedCompetitors.length === 0.
 
-Search Bar CSS Fix & Cleanup:
-
-Fix the CSS layout bug in the Ad Gallery search bar where the magnifying glass icon overlaps with the placeholder text (apply pl-10 or similar padding).
-
-Completely remove any "Back" navigation buttons, "Clear" buttons, and "Search Other Company" reset buttons from the UI.
-
-Active Ads KPI Formatting:
-
-Update the metric displayed on the "Active Ads" KPI summary card to display the absolute number of active ads (e.g., 32) instead of a percentage value.
+Ensure this button/section immediately becomes visible and active if the user makes any changes to their competitor selection (either via the main table checkboxes or the active competitors dropdown in the top header).
 
 Constraints:
 

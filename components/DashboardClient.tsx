@@ -161,23 +161,65 @@ export default function DashboardClient() {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
+    // Any change to the competitor selection immediately re-surfaces the
+    // "Get Ads for Selected" section so the workflow can be re-triggered
+    setIsPickingMore(true)
   }
 
   const handleToggleAll = () => {
     setSelectedIds((prev) =>
       prev.length === competitors.length ? [] : competitors.map((c) => c.id)
     )
+    // Selection changed — keep the "Get Ads for Selected" section visible/active
+    setIsPickingMore(true)
   }
 
-  const handleGetAds = async () => {
-    if (isFetchingAds || selectedIds.length === 0) return
-    const selected = competitors.filter((c) => selectedIds.includes(c.id))
+  // Executes the ads workflow for the selected competitors. The API expects the
+  // exact keys name / competitor_domain_url / competitor_description, and the
+  // competitorDetails field MUST be a stringified array (not a native array).
+  const handleGetAdsForSelected = async () => {
+    const selectedCompetitors = competitors.filter((c) => selectedIds.includes(c.id))
+    if (!selectedCompetitors || selectedCompetitors.length === 0) return
+    if (isFetchingAds) return
+
+    const companyDomain = domain.trim() || selectedCompetitors[0]?.domain || 'unknown'
+    const userEmail = emailId
     const runId = ++syncRunIdRef.current
     setIsFetchingAds(true)
     setAdsError('')
     try {
-      const companyName = domain.trim() || selected[0]?.domain || 'unknown'
-      const result = await runAdsWorkflow(companyName, emailId, selected)
+      // 1. Map to exact API schema
+      const formattedCompetitors = selectedCompetitors.map((comp) => ({
+        name: comp.name,
+        competitor_domain_url: comp.domain,
+        competitor_description: comp.description || `Competitor to ${companyDomain}`,
+      }))
+
+      // 2. Construct payload with double-stringified array
+      const payload = {
+        companyName: companyDomain,
+        Email: userEmail,
+        competitorDetails: JSON.stringify(formattedCompetitors),
+      }
+
+      // 3. Execute POST request
+      const response = await fetch(
+        'https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls',
+          },
+          body: JSON.stringify(payload),
+        }
+      )
+
+      if (!response.ok) throw new Error(`API Error: ${response.status}`)
+      await response.json()
+
+      // 4. Proceed to fetch Dashboard Data from DB here
+      const result = await runAdsWorkflow(companyDomain, emailId, selectedCompetitors)
       if (runId !== syncRunIdRef.current) return
       if (result.success && result.dashboard) {
         setDashboard(result.dashboard)
@@ -192,7 +234,8 @@ export default function DashboardClient() {
         setAdsError(result.error ?? 'Something went wrong while fetching ads. Please try again.')
       }
       setHasFetchedAds(true)
-    } catch {
+    } catch (error) {
+      console.error('Error triggering ad workflow:', error)
       if (runId !== syncRunIdRef.current) return
       setDashboard(null)
       setAds([])
@@ -316,92 +359,85 @@ export default function DashboardClient() {
           <section ref={domainSectionRef} className="ds-card mt-8 p-6">
             <h2 className="text-lg font-semibold text-grey-900">Analyze a Domain</h2>
             <p className="mt-1 text-sm text-grey-600">
-              Enter your company domain to discover which competitors are advertising against you.
+              Enter a company domain to discover its closest competitors and their ad strategy.
             </p>
             <form onSubmit={handleListCompetitors} className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder="e.g. yourcompany.com"
-                className="ds-input"
-                disabled={isFetchingCompetitors}
-                aria-label="Company domain"
-              />
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-400" />
+                <input
+                  type="text"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  placeholder="e.g. hubspot.com"
+                  className="ds-input pl-11"
+                  aria-label="Company domain"
+                />
+              </div>
               <button type="submit" className="ds-btn-primary" disabled={isFetchingCompetitors}>
-                {isFetchingCompetitors ? (
-                  <>
-                    <Spinner />
-                    Finding Competitors...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-5 w-5" />
-                    List Competitors
-                  </>
-                )}
+                {isFetchingCompetitors ? 'Searching…' : 'List Competitors'}
               </button>
             </form>
-            {domainError && <p className="mt-2 text-xs text-errords">{domainError}</p>}
-            {apiError && <p className="mt-2 text-xs text-errords">{apiError}</p>}
+            {domainError && <p className="mt-3 text-sm text-errords-deep">{domainError}</p>}
+            {apiError && <p className="mt-3 text-sm text-errords-deep">{apiError}</p>}
+            {isFetchingCompetitors && (
+              <div className="mt-6">
+                <Spinner label="Searching for competitors…" />
+              </div>
+            )}
           </section>
         )}
 
-        {/* Competitor selection table — shown before the dashboard loads, or when
-            adding/re-selecting competitors after the dashboard has loaded */}
-        {showTable && competitors.length > 0 && (
+        {/* Competitor selection table + Get Ads for Selected. This section is
+            shown before the dashboard loads and immediately re-appears whenever
+            the user changes the competitor selection (table checkboxes, the
+            header dropdown, or the Add Competitor flow). */}
+        {showTable && !isFetchingCompetitors && (
           <section className="ds-card mt-8 overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-grey-100 px-6 py-4">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-grey-600" />
-                <h2 className="text-lg font-semibold text-grey-900">Competitors</h2>
-                <span className="inline-flex items-center rounded-full bg-brand-surface px-2 py-0.5 text-xs font-semibold text-brand">
-                  {competitors.length}
-                </span>
+            <div className="flex flex-col gap-3 border-b border-grey-100 p-6 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-grey-600" />
+                  <h2 className="text-lg font-semibold text-grey-900">Select Competitors</h2>
+                </div>
+                <p className="mt-1 text-sm text-grey-600">
+                  Choose the competitors to analyze, then fetch their ads.
+                </p>
               </div>
               <button
                 type="button"
                 className="ds-btn-primary"
-                onClick={handleGetAds}
+                onClick={handleGetAdsForSelected}
                 disabled={isFetchingAds || selectedIds.length === 0}
               >
-                {isFetchingAds ? (
-                  <>
-                    <Spinner />
-                    Fetching Ads...
-                  </>
-                ) : (
-                  <>
-                    <Megaphone className="h-5 w-5" />
-                    Get Ads for Selected ({selectedIds.length})
-                  </>
-                )}
+                <Megaphone className="h-5 w-5" />
+                {isFetchingAds ? 'Fetching Ads…' : `Get Ads for Selected (${selectedIds.length})`}
               </button>
             </div>
-            <CompetitorsTable
-              competitors={competitors}
-              selectedIds={selectedIds}
-              onToggle={handleToggle}
-              onToggleAll={handleToggleAll}
-            />
+            {competitors.length === 0 ? (
+              <div className="p-10 text-center">
+                <p className="text-sm font-medium text-grey-700">No competitors to show yet</p>
+                <p className="mt-1 text-xs text-grey-500">
+                  Search a domain above or add a competitor manually from the top bar.
+                </p>
+              </div>
+            ) : (
+              <CompetitorsTable
+                competitors={competitors}
+                selectedIds={selectedIds}
+                onToggle={handleToggle}
+                onToggleAll={handleToggleAll}
+              />
+            )}
+            {adsError && (
+              <p className="border-t border-grey-100 px-6 py-4 text-sm text-errords-deep">{adsError}</p>
+            )}
           </section>
         )}
 
-        {/* Ads workflow error */}
-        {adsError && !isFetchingAds && (
-          <div className="ds-card mt-6 p-4">
-            <p className="text-sm text-errords">{adsError}</p>
-          </div>
-        )}
-
-        {/* Loading state while the ads workflow runs */}
+        {/* Ads workflow progress */}
         {isFetchingAds && (
-          <div className="ds-card mt-8 flex flex-col items-center justify-center p-12 text-center">
-            <Spinner />
-            <p className="mt-3 text-sm font-medium text-grey-700">
-              Fetching ads for the selected competitors...
-            </p>
-            <p className="mt-1 text-xs text-grey-500">This can take a moment while we scan ad platforms.</p>
+          <div className="ds-card mt-8 p-10">
+            <Spinner label="Analyzing competitor ads — this can take a minute…" />
           </div>
         )}
 
@@ -412,10 +448,9 @@ export default function DashboardClient() {
             {activeTab === 'gallery' && (
               <AdGallery
                 ads={visibleAds}
-                data={visibleDashboard}
                 search={gallerySearch}
-                onSearchChange={setGallerySearch}
                 format={galleryFormat}
+                onSearchChange={setGallerySearch}
                 onFormatChange={setGalleryFormat}
               />
             )}
@@ -440,9 +475,8 @@ export default function DashboardClient() {
 
       <AddCompetitorModal
         isOpen={isModalOpen}
-        isSubmitting={false}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAddCompetitor}
+        onAdd={handleAddCompetitor}
       />
     </div>
   )

@@ -1,15 +1,12 @@
 interface SpinnerProps {
-  size?: 'sm' | 'md'
-  className?: string
+  label?: string
 }
 
-export default function Spinner({ size = 'sm', className = '' }: SpinnerProps) {
-  const dimension = size === 'sm' ? 'h-4 w-4' : 'h-6 w-6'
+export default function Spinner({ label }: SpinnerProps) {
   return (
-    <span
-      className={`inline-block ${dimension} animate-spin rounded-full border-2 border-current border-t-transparent ${className}`}
-      role="status"
-      aria-label="Loading"
-    />
+    <div className="flex flex-col items-center justify-center gap-3" role="status" aria-live="polite">
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-grey-200 border-t-brand" />
+      {label && <p className="text-sm text-grey-600">{label}</p>}
+    </div>
   )
 }
