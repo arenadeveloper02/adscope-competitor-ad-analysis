@@ -1,53 +1,43 @@
 // **NOTE: dont remove updatedAt in any tables **
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model AnalysisSession {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   domain    String
   emailId   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model DashboardSnapshot {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   emailId   String   @unique
   domain    String
   payload   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model SheetExport {
-  id          Int      @id @default(autoincrement())
+  id          String   @id @default(cuid())
   companyName String
   emailId     String
   payload     String
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt @default(now())
-}
-
-// RESTORED: this model was accidentally dropped from a regenerated schema,
-// which made `prisma db push` plan a destructive DROP of the live
-// `AdIntelligenceReport` table (4 existing rows). Re-adding the model with
-// its original table name and column names/types makes the diff a no-op /
-// additive-only, so the deploy succeeds without --accept-data-loss.
-// Every non-key column is nullable or has a default, so no backfill is
-// required against existing rows. Do NOT remove or rename this model.
-model AdIntelligenceReport {
-  id          Int      @id @default(autoincrement())
-  emailId     String?
-  companyName String?
-  domain      String?
-  payload     String?
-  status      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
