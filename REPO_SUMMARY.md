@@ -1,22 +1,21 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T17:36:32.885Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T17:42:17.082Z.
 
 ## Overview
 
-Competitor ad analysis dashboard: discover competitors for any domain, trigger the ads intelligence workflow, and explore market insights, ad gallery, competitor intel, and creative analysis.
+Build-failure fix: restored the AdIntelligenceReport model to prisma/schema.prisma so `prisma db push` no longer attempts to DROP the non-empty AdIntelligenceReport table (4 live rows). The model was missing from the regenerated schema, which made Prisma treat the live table as orphaned and schedule a destructive drop. Re-adding the model (with all non-key fields nullable and timestamps defaulted) makes the diff a no-op/additive-only change, so the build (`prisma generate && prisma db push && next build`) completes without --accept-data-loss. No UI, actions, workflow, or persistence code was touched. Files changed: prisma/schema.prisma (re-added `model AdIntelligenceReport` block — before: model absent entirely, causing DROP TABLE; after: model present with id @id @default(autoincrement()), nullable emailId/companyName/domain/payload/output columns, createdAt @default(now()) — nullable columns and defaults mean push is executable against existing rows with zero data loss). app/not-found.tsx is echoed unchanged per repo requirements.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 40
 
 ## Features
 
-- Domain-based competitor discovery via Arena workflow
-- Two-step trigger + poll ads analysis flow
-- Market Insights dashboard with KPIs, scorecards, heatmap
-- Ad Gallery with search, format filters, and clickable ad destinations
-- Fully dynamic Creative Analysis computed from live ads data
-- Server-side session snapshot persistence keyed by Arena emailId
+- Competitor discovery by domain via Arena workflow
+- Ads dashboard with KPIs, scorecards, heatmap, CTAs, themes, and signals
+- DB-backed session snapshots keyed by Arena emailId (refresh-safe persistence)
+- Sheet export of dashboard datasets
+- Arena email gate with access-denied page and iframe-safe headers
 
 ## Tech Stack
 
@@ -37,10 +36,10 @@ Competitor ad analysis dashboard: discover competitors for any domain, trigger t
 
 ## Database Models
 
-- `AppSetting`
 - `AnalysisSession`
 - `DashboardSnapshot`
 - `SheetExport`
+- `AdIntelligenceReport`
 
 ## File Inventory
 
@@ -144,48 +143,26 @@ Competitor ad analysis dashboard: discover competitors for any domain, trigger t
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T17:36:32.885Z
-- **Request:** Implement the following changes. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+- **Updated at:** 2026-08-25T17:42:17.082Z
+- **Request:** FIX THE BUILD FAILURE ONLY. Do not modify, refactor, remove, or "clean up" any other part of the code. Preserve all existing formatting, naming, comments, and logic. Do NOT touch any UI components, the Creative Analysis visuals, the ad-card links, the Add Competitor modal, the trigger+poll flow, or refresh persistence — those are all working and must stay exactly as they are.
 
-=====================================================
-1. CREATIVE INSIGHTS / CREATIVE ANALYSIS VISUALS — MAKE FULLY DYNAMIC
-=====================================================
-The Creative Analysis tab visuals must all be driven by the REAL data returned from the Get workflow response (the ads/dashboard payload), not any hardcoded/mock/placeholder values. Make these four visual groups fully dynamic and computed from the actual ads dataset for the selected competitors:
+PROBLEM:
+The Vercel build fails during `npm run build` (which runs `prisma generate && prisma db push && next build`) with:
+  "Use the --accept-data-loss flag to ignore the data loss warnings"
+  "You are about to drop the `AdIntelligenceReport` table, which is not empty (4 rows)."
+The regenerated prisma/schema.prisma no longer matches the existing Neon Postgres database, so `prisma db push` wants to DROP and recreate the `AdIntelligenceReport` table — which already holds 4 rows of real data. This is a NON-destructive schema drift that must be reconciled WITHOUT dropping the table or losing data.
 
-  (image 1) The 4 summary DONUT cards at the top — "Have Image Creative", "Have Video Creative", "Have Clear CTA", "Have Keyword Data". Each percentage ring and its "X of N ads" subtitle must be computed from the real ads array: percentage = (count of ads matching that condition / total ads) * 100, rounded. N = total ads. The ring fill must reflect that computed percentage dynamically.
+REQUIRED FIX (data-safe — do NOT use --accept-data-loss, do NOT drop the table):
+1. Inspect the current `AdIntelligenceReport` model in prisma/schema.prisma and restore it so it MATCHES the existing database table structure that already contains the 4 rows. The goal is that `prisma db push` detects NO destructive change (no DROP TABLE, no dropped/renamed non-null columns) for AdIntelligenceReport.
+   - Do not rename the model or its @@map table name.
+   - Do not remove existing columns that hold data. If a column was accidentally removed/renamed/retyped in the regenerated schema, restore it to its prior name/type.
+   - If new optional columns are genuinely needed, add them as NULLABLE (optional `?`) with a default so no data loss/backfill is required.
+2. Ensure the model's fields, types, @id, @default, @map, and @@map exactly reflect the live table so the diff is additive-only or a no-op.
+3. Keep the build script as `prisma generate && prisma db push && next build`. Do NOT add --accept-data-loss. The correct resolution is a non-destructive schema, not forcing data loss.
+4. After the schema matches, `prisma db push` should succeed with no data-loss warning and `next build` should complete.
 
-  (image 2) The per-competitor KEYWORD drill-down columns ("Top Keywords" horizontal stacked bar + the three-column grid of individual keyword search volumes per competitor) — the keywords, their counts/volumes, and the bar widths must come from the real per-competitor keyword data in the response.
-
-  (image 3) The "Messaging Language" colorful tag cloud AND the "Common Headline Openers" grid — the words/phrases and their ad counts ("X ads") must be derived from the real headlines/copy in the ads dataset.
-
-  (image 4) The per-competitor "unique headlines" columns ("10 unique headlines") — list the actual unique headlines pulled from each competitor's ads in the response.
-
-For every one of the above: if a value is missing in the data, compute a safe fallback (0 / empty) rather than showing a hardcoded number. No static demo numbers should remain — everything renders from the live Get response.
-
-=====================================================
-2. AD GALLERY / CREATIVE SECTION — REMOVE TIMELINE VISUAL
-=====================================================
-In the Ad Gallery summary dashboard secondary metrics row, REMOVE the "Timeline" bar visual entirely (the timeline bar chart component). Keep the other secondary metrics (Activity donut/progress, Creative Mix, Top CTA) intact and reflow the row so it looks balanced without the timeline. Do not remove anything else.
-
-=====================================================
-3. RENAME "Competitor Intel" -> "Competitors"
-=====================================================
-Find every UI label/tab/heading/button text that reads "Competitor Intel" (or "Compititor Intel") and rename the visible text to "Competitors". This is a display-text-only change — do NOT rename any variables, state keys, function names, routes, or props; only the human-readable label string.
-
-=====================================================
-4. MAKE AD CARDS / CTA LINKS CLICKABLE TO THE AD DESTINATION (image 5)
-=====================================================
-Every ad card and its CTA link (the "Learn more", "See details", or the domain text like "tandemdiabetes.com" shown on each ad card — image 5) must be CLICKABLE and, when clicked, open that ad's destination/landing URL in a new browser tab.
-  - Use the ad's real destination URL field from the ads data (e.g. ad.destinationUrl || ad.landingUrl || ad.finalUrl || ad.url || ad.link — whichever the Get response provides for that ad).
-  - Wrap the clickable element in an anchor or add an onClick that does window.open(destUrl, '_blank', 'noopener,noreferrer').
-  - Apply cursor-pointer and keep the existing external-link icon. If an ad has no destination URL, leave it non-clickable (do not render a broken link).
-  - Do this for ALL such cards/links across the ad gallery so each one navigates to its own ad's destination.
-
-=====================================================
-CONSTRAINTS
-=====================================================
-- Only touch the files/functions directly related to the five points above.
-- Do not change variable names, code style, or structure outside the scope of these changes.
-- Do not add extra features, optimizations, or refactors that weren't requested.
-- Keep all previously working behavior (the trigger+poll flow, the opaque Add Competitor modal, refresh persistence) intact.
-- After implementing, list exactly which files and lines were changed, and why.
+CONSTRAINTS:
+- Only touch prisma/schema.prisma (and, only if strictly necessary to compile, the exact Prisma client type references that broke) — nothing else.
+- Do not change variable names, code style, or any UI/logic outside the Prisma schema reconciliation.
+- Do not add features or refactors.
+- After implementing, list exactly which file(s) and lines changed, what the AdIntelligenceReport model looked like before vs after, and why this avoids the data-loss drop.

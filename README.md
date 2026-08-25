@@ -44,9 +44,5 @@ On Vercel, `DATABASE_URL` is injected when Neon is connected to the project.
 ## Scripts
 
 - `npm run dev` — start the development server
-- `npm run build` — production build (runs Prisma generate/push when configured)
-- `npm run start` — run the production server locally
-
-## Deploy
-
-This project is intended for deployment on [Vercel](https://vercel.com). Connect the GitHub repository and deploy the `main` branch.
+- `npm run bu
+…(truncated)

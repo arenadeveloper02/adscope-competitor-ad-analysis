@@ -1,43 +1,52 @@
 // **NOTE: dont remove updatedAt in any tables **
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-model AppSetting {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model AnalysisSession {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   domain    String
   emailId   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model DashboardSnapshot {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   emailId   String   @unique
   domain    String
   payload   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
 }
 
 model SheetExport {
-  id          String   @id @default(cuid())
+  id          Int      @id @default(autoincrement())
   companyName String
   emailId     String
   payload     String
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+// RESTORED: this table already exists in the live Neon database and holds real
+// rows (4 at time of fix). It was accidentally removed from a regenerated
+// schema, which made `prisma db push` schedule a destructive DROP TABLE and
+// fail the Vercel build with a data-loss warning. Re-adding the model keeps
+// the diff non-destructive. The table is written by the external Arena ads
+// workflow (trigger + Get flow) — application code does not query it directly,
+// but it MUST remain declared here so Prisma never tries to drop it.
+// All non-key fields are nullable and timestamps carry @default(now()) so the
+// push is executable against existing rows with zero backfill required.
+model AdIntelligenceReport {
+  id          Int      @id @default(autoincrement())
+  emailId     String?
+  companyName String?
+  domain      String?
+  payload     String?
+  output      String?
+  createdAt   DateTime @default(now())
 }
