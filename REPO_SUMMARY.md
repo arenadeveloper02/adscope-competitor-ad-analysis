@@ -1,10 +1,10 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-25T16:08:40.941Z.
+> Auto-maintained by Sim Development. Last updated: 2026-08-25T16:34:50.073Z.
 
 ## Overview
 
-AdScope discovers competitors for any domain and analyzes their ads across platforms with persistent, per-user dashboard sessions.
+AdScope discovers competitors for any domain and analyzes their ads across platforms with a two-step trigger + poll workflow, DB-backed session persistence, and an Arena DS dashboard.
 
 **Repository:** `adscope-competitor-ad-analysis`  
 **File count:** 40
@@ -12,10 +12,12 @@ AdScope discovers competitors for any domain and analyzes their ads across platf
 ## Features
 
 - Competitor discovery by domain via Arena workflow
-- Two-step ads analysis (trigger + get) with dashboard restore on refresh
-- Opaque Add Competitor modal with dimmed backdrop
-- Server-side session persistence keyed by Arena emailId (DashboardSnapshot)
-- Market insights, ad gallery, competitor intel, and creative analysis tabs
+- Two-step ads analysis: fire-and-forget trigger + resilient polling of the Get workflow
+- Market Insights dashboard with KPI cards, scorecards, heatmap, keywords, CTAs, themes, and signals
+- Ad Gallery with search and format filters
+- Competitor Intel and Creative Analysis tabs
+- Server-side session snapshot persistence keyed by Arena emailId
+- Analysis session logging and sheet export to Postgres
 
 ## Tech Stack
 
@@ -143,45 +145,90 @@ AdScope discovers competitors for any domain and analyzes their ads across platf
 
 ## Latest Change
 
-- **Updated at:** 2026-08-25T16:08:40.941Z
-- **Request:** Implement the following two fixes in the codebase. Do not modify, refactor, remove, or "clean up" any other part of the code beyond what is explicitly listed below. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
+- **Updated at:** 2026-08-25T16:34:50.073Z
+- **Request:** Fix the "No ads data was found yet for this analysis" bug. The backend data DOES exist — the Get workflow returns a large valid ads/dashboard payload when called with { email, company_name }. The real problem is that the front-end two-step flow is not resilient to the long-running trigger workflow, so the Get call is never reached or its result is never rendered. Implement the fixes below ONLY. Do not modify, refactor, remove, or "clean up" any other part of the code. Preserve existing formatting, naming conventions, comments, and logic in all unrelated sections.
 
 =====================================================
-FIX 1 — "ADD COMPETITOR" MODAL IS TRANSPARENT
+ROOT CAUSE
 =====================================================
-BUG: The "Add Competitor" modal is rendering with a transparent/see-through container. Its text ("Add Competitor", "Enter the competitor's domain...", the input placeholder "e.g. competitor.com", and the Cancel/Add buttons) visually overlaps the competitor table and background behind it, making it unreadable.
-
-FIX:
-- Locate the "Add Competitor" modal component/JSX (the dialog containing the "Add Competitor" heading, the domain input, and the Cancel / Add buttons).
-- Give the modal's MAIN CONTENT container a SOLID opaque background: bg-white (add dark-theme variant only if the app already uses one, e.g. dark:bg-slate-800). Do NOT use any bg-*/opacity, bg-white/80, or semi-transparent utility on the content card itself.
-- Ensure the content card has: rounded corners (rounded-xl or existing radius), padding (existing p-*), shadow-xl, and z-50.
-- Add a dimmed backdrop OVERLAY behind the modal (a separate absolutely/fixed positioned div): fixed inset-0 bg-black/50 with a lower z-index (e.g. z-40) than the content card, so the card sits opaquely ON TOP of the dimmed backdrop.
-- Ensure the modal content uses relative positioning and is centered (fixed inset-0 flex items-center justify-center) so it is not accidentally transparent due to missing background or stacking context.
-- DO NOT change any of the modal's JavaScript, state, handlers, or the Add/Cancel logic. This is a CSS/className-only fix.
+- The Final (trigger) workflow at cca441d4-12dc-4eb9-a211-8f7d6cbcde05 takes ~4+ minutes. A single blocking browser fetch to it is cut off by gateway/ALB/browser timeouts, throws, and the catch block runs BEFORE Step 2 (the Get call) ever executes. So the dashboard never gets populated.
+- Fix by DECOUPLING the two calls and POLLING the Get endpoint until data appears.
 
 =====================================================
-FIX 2 — DASHBOARD DATA IS ERASED ON PAGE REFRESH (MUST PERSIST)
+FIX 1 — handleGetAdsForSelected: trigger + poll pattern
 =====================================================
-BUG: When the user refreshes the browser/tab, the entire analysis state is wiped — the company domain, selected competitors, and all dashboard/ads data disappear and the app resets to the initial "Analyze a Domain" screen.
+Rewrite handleGetAdsForSelected (in the main component) to:
 
-FIX: On app load, automatically restore the previous session's data so the user resumes exactly where they left off.
+STEP 1 (fire the trigger, tolerate timeout): POST to the Final workflow but DO NOT block the UI on its full completion. Wrap it so a network timeout/abort does NOT abort the whole flow.
+  - Endpoint: POST https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute
+  - Headers: 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls'
+  - Body keys EXACTLY: companyName, Email, competitorDetails (competitorDetails = JSON.stringify of mapped array with keys name, competitor_domain_url, competitor_description).
+  - Fire it and catch/ignore its timeout (the workflow keeps running server-side even if the fetch is dropped).
 
-- Implement a useEffect hook (or equivalent init logic) in the main component that fires ONCE on mount.
-- It should re-fetch the most recent analysis for the current user from the Get workflow endpoint (same API already used to populate the dashboard):
-    POST https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute
-    Headers: 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-'
-    Body (exact keys, lowercase/snake_case): { "email": userEmail, "company_name": companyDomain }
-  Use the last-known userEmail and companyDomain — persist those two values in localStorage whenever an analysis is run, and read them back on mount so the refresh fetch knows which record to load. Order/pick the MOST RECENT run for that user (backend already returns latest; if multiple, use the newest by last_updated).
-- If a recent run is returned, restore ALL of: the company domain input value, the selected competitors (checkbox selections), and every dashboard visual (KPI cards, ad cards grid, Insights, Creative Analysis). Reveal the dashboard tabs and hide the initial empty state — exactly as if the data had just loaded from Get Ads for Selected.
-- If no prior run exists (empty response / first-time user), fall back to the current initial screen — do not error.
-- Persist the minimal restore keys in localStorage (e.g. companyDomain and userEmail, and optionally the last dashboard payload as a cache for instant paint before the network refetch resolves). Rehydrate from localStorage first for instant render, then refresh from the Get API.
-- Do NOT change the existing handleGetAdsForSelected two-step flow logic — only ADD the persistence/restore-on-mount behavior and the localStorage writes at the point where an analysis successfully completes.
+STEP 2 (poll the Get endpoint until data appears): Repeatedly call the Get workflow every 20 seconds (up to ~15 attempts / 5 minutes) until it returns ads data, then render the dashboard.
+  - Endpoint: POST https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute
+  - Headers: 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-'
+  - Body keys EXACTLY (lowercase/snake_case — do NOT reuse the Step 1 payload): { email: userEmail, company_name: companyDomain }
+  - On each poll: parse response JSON, detect whether it contains ads/dashboard data (non-empty). If yes: populate ALL dashboard state (KPI cards, ad cards grid, Insights, Creative Analysis), reveal the tabs, clear the "No ads data" message, stop polling, set isFetchingAds=false. If still empty: wait 20s and retry. Keep isFetchingAds=true and show a "Analyzing… this can take a few minutes" loading state during polling.
+  - After max attempts with still no data, stop and show the existing "No ads data was found yet" message.
+
+IMPORTANT PARSING NOTE: The Get response is large and may be nested (e.g. under output/result). Robustly locate the ads array/dashboard object in the response and guard against undefined so a valid-but-nested payload is NOT treated as empty. Only treat it as empty when there is genuinely no ads data.
+
+Exact structure to use:
+
+const handleGetAdsForSelected = async () => {
+  if (!selectedCompetitors || selectedCompetitors.length === 0) return;
+  setIsFetchingAds(true);
+  try {
+    const formattedCompetitors = selectedCompetitors.map((comp) => ({
+      name: comp.competitorName || comp.name,
+      competitor_domain_url: comp.competitorDomain || comp.domain,
+      competitor_description: comp.description || `Competitor to ${companyDomain}`
+    }));
+    const triggerPayload = { companyName: companyDomain, Email: userEmail, competitorDetails: JSON.stringify(formattedCompetitors) };
+    // STEP 1: fire trigger, tolerate timeout (server keeps running)
+    fetch('https://agent.thearena.ai/api/workflows/cca441d4-12dc-4eb9-a211-8f7d6cbcde05/execute', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-8bpk3K9bxQG90vzT8x-lVMAOPjjmIGls' }, body: JSON.stringify(triggerPayload)
+    }).catch((e) => console.warn('trigger fetch dropped (workflow continues server-side):', e));
+    // persist for refresh restore
+    try { localStorage.setItem('adscope_companyDomain', companyDomain); localStorage.setItem('adscope_userEmail', userEmail); } catch {}
+    // STEP 2: poll Get until data appears
+    const maxAttempts = 15; const intervalMs = 20000;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const getRes = await fetch('https://agent.thearena.ai/api/workflows/44a45367-2ae0-406f-b745-6b2e2bef52fe/execute', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': 'sk-sim-tuJgJPxfUPn2zjFWRMTxxKDaB3tKQLJ-' }, body: JSON.stringify({ email: userEmail, company_name: companyDomain })
+      });
+      if (getRes.ok) {
+        const data = await getRes.json();
+        const ads = extractAdsFromGetResponse(data); // robustly dig into output/result for the ads array/dashboard
+        if (ads && ((Array.isArray(ads) && ads.length > 0) || (typeof ads === 'object' && Object.keys(ads).length > 0))) {
+          populateDashboardFromGet(data); // set KPI cards, ad cards, insights, creative analysis; reveal tabs
+          try { localStorage.setItem('adscope_lastDashboard', JSON.stringify(data)); } catch {}
+          setIsFetchingAds(false);
+          return;
+        }
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    // exhausted attempts: keep existing empty-state message
+  } catch (error) {
+    console.error('Error running ad analysis flow:', error);
+  } finally {
+    setIsFetchingAds(false);
+  }
+};
+
+Add the two small helpers extractAdsFromGetResponse(data) and populateDashboardFromGet(data) if they do not already exist, matching how the dashboard state is currently set. Reuse existing state setters — do not invent new dashboard rendering.
+
+=====================================================
+FIX 2 — restore on refresh (keep existing behavior, just ensure it renders)
+=====================================================
+Keep the on-mount useEffect that reads adscope_userEmail + adscope_companyDomain from localStorage, instantly paints from adscope_lastDashboard if present, then re-fetches the Get endpoint once with { email, company_name } and repopulates via populateDashboardFromGet. If nothing stored / empty response, fall back to the initial screen without error.
 
 =====================================================
 CONSTRAINTS
 =====================================================
-- Only touch the files/functions directly related to the two points above.
-- Do not change variable names, code style, or structure outside the scope of these changes.
-- Do not add extra features, optimizations, or refactors that weren't requested.
-- If a change requires touching a shared/common file, make the minimal edit needed and leave everything else untouched.
+- Only touch handleGetAdsForSelected, the restore useEffect, and the two small helper functions.
+- Do not change variable names, code style, or structure elsewhere.
+- Do not add extra features/refactors.
 - After implementing, list exactly which files and lines were changed, and why.
