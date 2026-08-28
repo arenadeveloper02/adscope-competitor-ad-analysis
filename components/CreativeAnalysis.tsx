@@ -43,6 +43,12 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
     { label: 'Have Keyword Data', count: keywordAdCount, color: '#B364D7' },
   ]
 
+  /* Per-competitor total ad counts — powers the "View all X ads" buttons */
+  const competitorAdCounts = new Map<string, number>()
+  ads.forEach((ad) => {
+    competitorAdCounts.set(ad.competitorName, (competitorAdCounts.get(ad.competitorName) ?? 0) + 1)
+  })
+
   /* (image 2) Per-competitor keyword drill-down from real per-ad keyword data */
   const overallKeywordCounts = new Map<string, number>()
   const competitorKeywordMap = new Map<string, Map<string, number>>()
@@ -201,20 +207,25 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                 </div>
               </>
             )}
+            {/* Competitor keyword drill-down — one column per competitor with
+                clickable keyword bars and a "View all X ads" button that filters
+                the Ad Gallery to that competitor. */}
             {competitorKeywordColumns.length > 0 && (
               <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {competitorKeywordColumns.map((column) => {
                   const columnMax = Math.max(1, ...column.keywords.map((k) => k.count))
+                  const columnAdTotal = competitorAdCounts.get(column.name) ?? 0
                   return (
-                    <div key={column.name} className="rounded-xl border border-grey-100 p-4">
+                    <div key={column.name} className="flex flex-col rounded-xl border border-grey-100 p-4">
                       <p className="truncate text-sm font-semibold text-grey-900">{column.name}</p>
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-3 flex-1 space-y-2">
                         {column.keywords.map((entry) => (
                           <button
                             key={`${column.name}-${entry.keyword}`}
                             type="button"
                             onClick={() => onFilterGallery('all', entry.keyword)}
-                            className="block w-full text-left"
+                            className="block w-full cursor-pointer text-left"
+                            title={`Search the gallery for \"${entry.keyword}\"`}
                           >
                             <div className="flex items-center justify-between text-xs text-grey-700">
                               <span className="truncate font-medium">{entry.keyword}</span>
@@ -232,6 +243,14 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                           </button>
                         ))}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => onFilterGallery('all', column.name)}
+                        className="mt-3 w-full cursor-pointer rounded-lg border border-grey-200 px-3 py-2 text-center text-xs font-semibold text-brand transition-colors hover:bg-brand-surface"
+                        title={`View all ${columnAdTotal} ads from ${column.name} in the Ad Gallery`}
+                      >
+                        View all {columnAdTotal} ads
+                      </button>
                     </div>
                   )
                 })}
@@ -261,10 +280,10 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                         onClick={() => onFilterGallery('all', word)}
                         className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 font-medium ${size}`}
                         style={{ backgroundColor: tone.bg, color: tone.text }}
-                        title={`${word}: used in ${count} ads`}
+                        title={`Appears in ${count} ads`}
                       >
                         {word}
-                        <span className="opacity-70">{count} ads</span>
+                        <span className="opacity-70">{count}</span>
                       </button>
                     )
                   })}
@@ -276,20 +295,21 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                 <Quote className="h-5 w-5 text-grey-600" />
                 <h3 className="text-base font-semibold text-grey-900">Common Headline Openers</h3>
               </div>
-              <p className="mt-1 text-xs text-grey-500">How competitors open their headlines. Click to search the gallery.</p>
+              <p className="mt-1 text-xs text-grey-500">First words competitors lead with. Click to search the gallery.</p>
               {topOpeners.length === 0 ? (
                 <p className="mt-4 text-xs text-grey-500">No headline data detected.</p>
               ) : (
-                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {topOpeners.map(([opener, count]) => (
                     <button
                       key={opener}
                       type="button"
                       onClick={() => onFilterGallery('all', opener)}
-                      className="cursor-pointer rounded-lg border border-grey-100 bg-grey-50 px-3 py-2 text-left transition-colors hover:border-brand"
+                      className="flex cursor-pointer items-center justify-between rounded-lg border border-grey-100 px-3 py-2 text-left transition-colors hover:bg-grey-50"
+                      title={`Used to open ${count} headlines`}
                     >
-                      <span className="block truncate text-xs font-semibold text-grey-900">“{opener}…”</span>
-                      <span className="block text-[10px] text-grey-500">{count} ads</span>
+                      <span className="truncate text-xs font-medium text-grey-700">{opener}</span>
+                      <span className="ml-2 shrink-0 text-xs font-semibold text-grey-900">{count}</span>
                     </button>
                   ))}
                 </div>
@@ -297,26 +317,27 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
             </div>
           </div>
 
-          {/* (image 4) Unique headlines per competitor */}
-          <div className="mt-4">
+          {/* (image 4) Headlines by competitor */}
+          <div className="ds-card mt-4 p-5">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-grey-600" />
-              <h3 className="text-base font-semibold text-grey-900">Unique Headlines by Competitor</h3>
+              <h3 className="text-base font-semibold text-grey-900">Headlines by Competitor</h3>
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <p className="mt-1 text-xs text-grey-500">Unique headlines pulled from each tracked company. Click to find in gallery.</p>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {headlineColumns.map((column) => (
-                <div key={column.name} className="ds-card p-4">
+                <div key={column.name} className="rounded-xl border border-grey-100 p-4">
                   <p className="truncate text-sm font-semibold text-grey-900">{column.name}</p>
-                  <p className="text-xs text-grey-500">{column.headlines.length} unique headlines</p>
                   <ul className="mt-3 space-y-2">
-                    {column.headlines.slice(0, 10).map((headline) => (
+                    {column.headlines.slice(0, 8).map((headline) => (
                       <li key={`${column.name}-${headline}`}>
                         <button
                           type="button"
                           onClick={() => onFilterGallery('all', headline)}
-                          className="w-full cursor-pointer rounded-lg border border-grey-100 bg-grey-50 px-3 py-2 text-left text-xs leading-5 text-grey-700 transition-colors hover:border-brand hover:text-brand"
+                          className="flex w-full cursor-pointer items-start gap-2 text-left text-xs leading-5 text-grey-700 transition-colors hover:text-brand"
                         >
-                          {headline}
+                          <Quote className="mt-0.5 h-3 w-3 shrink-0 text-grey-400" />
+                          <span>{headline}</span>
                         </button>
                       </li>
                     ))}

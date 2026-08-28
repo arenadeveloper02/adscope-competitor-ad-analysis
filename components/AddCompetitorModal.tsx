@@ -1,109 +1,118 @@
 "use client"
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
+import type { Competitor } from '@/lib/types'
 
 interface AddCompetitorModalProps {
   isOpen: boolean
   onClose: () => void
-  onAdd: (name: string, domain: string, description?: string) => void
+  onAdd: (competitor: Competitor) => void
+}
+
+function cleanDomainInput(input: string): string {
+  return input
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase()
 }
 
 export default function AddCompetitorModal({ isOpen, onClose, onAdd }: AddCompetitorModalProps) {
   const [name, setName] = useState('')
-  const [domain, setDomain] = useState('')
-  const [description, setDescription] = useState('')
+  const [domainValue, setDomainValue] = useState('')
   const [error, setError] = useState('')
 
   if (!isOpen) return null
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!name.trim() || !domain.trim()) {
-      setError('Competitor name and domain are both required.')
+    const cleaned = cleanDomainInput(domainValue)
+    if (!cleaned) {
+      setError('Please enter a valid competitor domain.')
       return
     }
-    onAdd(name, domain, description.trim() ? description : undefined)
+    const label = cleaned.split('.')[0] ?? cleaned
+    const fallbackName = label ? label.charAt(0).toUpperCase() + label.slice(1) : cleaned
+    const competitor: Competitor = {
+      id: `comp-${Date.now()}-manual`,
+      name: name.trim() || fallbackName,
+      domain: cleaned.includes('.') ? cleaned : `${cleaned}.com`,
+      matchScore: 75,
+    }
+    onAdd(competitor)
     setName('')
-    setDomain('')
-    setDescription('')
+    setDomainValue('')
     setError('')
-  }
-
-  const handleClose = () => {
-    setError('')
-    onClose()
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add competitor manually"
-    >
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-2xl p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-grey-900">Add Competitor</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(44, 45, 51, 0.72)' }}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-grey-900">Add Competitor</h2>
+            <p className="mt-1 text-xs text-grey-500">
+              Manually add a competitor to include it in the ads analysis.
+            </p>
+          </div>
           <button
             type="button"
-            onClick={handleClose}
+            onClick={onClose}
             className="rounded-lg p-1 text-grey-500 transition-colors hover:bg-grey-50 hover:text-grey-900"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-        <p className="mt-1 text-xs text-grey-500">
-          Manually add a competitor to include in the ads analysis.
-        </p>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
-            <label className="text-xs font-medium uppercase tracking-wide text-grey-600" htmlFor="competitor-name">
-              Competitor Name
+            <label htmlFor="add-competitor-domain" className="text-xs font-medium text-grey-700">
+              Competitor domain
             </label>
             <input
-              id="competitor-name"
+              id="add-competitor-domain"
+              type="text"
+              value={domainValue}
+              onChange={(e) => {
+                setDomainValue(e.target.value)
+                if (error) setError('')
+              }}
+              placeholder="e.g. competitor.com"
+              className="ds-input mt-1"
+            />
+          </div>
+          <div>
+            <label htmlFor="add-competitor-name" className="text-xs font-medium text-grey-700">
+              Competitor name (optional)
+            </label>
+            <input
+              id="add-competitor-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Acme Analytics"
+              placeholder="e.g. Competitor Inc."
               className="ds-input mt-1"
             />
           </div>
-          <div>
-            <label className="text-xs font-medium uppercase tracking-wide text-grey-600" htmlFor="competitor-domain">
-              Competitor Domain
-            </label>
-            <input
-              id="competitor-domain"
-              type="text"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              placeholder="e.g. acme.com"
-              className="ds-input mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium uppercase tracking-wide text-grey-600" htmlFor="competitor-description">
-              Description (optional)
-            </label>
-            <textarea
-              id="competitor-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this competitor do?"
-              rows={3}
-              className="ds-input mt-1"
-              style={{ height: 'auto', minHeight: '80px' }}
-            />
-          </div>
-          {error && <p className="text-xs text-errords">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <button type="button" className="ds-btn-secondary" onClick={handleClose}>
+          {error && (
+            <p className="text-xs" style={{ color: '#F31A1A' }}>
+              {error}
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button type="button" className="ds-btn-secondary" onClick={onClose}>
               Cancel
             </button>
             <button type="submit" className="ds-btn-primary">
+              <Plus className="h-4 w-4" />
               Add Competitor
             </button>
           </div>
