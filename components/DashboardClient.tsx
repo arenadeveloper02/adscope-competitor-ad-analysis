@@ -58,13 +58,10 @@ function isTriggerSuccess(payload: unknown): boolean {
   const record = payload as Record<string, unknown>
   if (record.success !== true) return false
   const output = record.output
-  if (typeof output === 'object' && output !== null) {
-    const result = (output as Record<string, unknown>).result
-    if (typeof result === 'object' && result !== null) {
-      return (result as Record<string, unknown>).status === 'success'
-    }
-  }
-  return true
+  if (typeof output !== 'object' || output === null) return false
+  const result = (output as Record<string, unknown>).result
+  if (typeof result !== 'object' || result === null) return false
+  return (result as Record<string, unknown>).status === 'success'
 }
 
 export default function DashboardClient() {
@@ -125,7 +122,6 @@ export default function DashboardClient() {
       let snapDomain = ''
       let snapCompetitors: Competitor[] = []
       let snapSelectedIds: string[] = []
-      let snapHadDashboard = false
       try {
         const result = await loadDashboardSnapshot(emailId)
         if (!cancelled && result.success && result.snapshot) {
@@ -140,14 +136,12 @@ export default function DashboardClient() {
           snapDomain = snap.domain
           snapCompetitors = snap.competitors
           snapSelectedIds = snap.selectedIds
-          snapHadDashboard = snap.dashboard !== null
         }
       } catch {
         // ignore restore failures — start with a clean slate
       }
       if (cancelled) return
       isHydratedRef.current = true
-      if (snapHadDashboard) setIsRestoring(false)
 
       // Phase 2: refresh the latest run from the Get workflow for this user.
       try {
@@ -156,7 +150,11 @@ export default function DashboardClient() {
           const lastDomain = await getLastAnalyzedDomain(emailId)
           if (lastDomain) restoreDomain = lastDomain
         }
-        if (cancelled || !restoreDomain) return
+        if (cancelled) return
+        if (!restoreDomain) {
+          setIsRestoring(false)
+          return
+        }
         const restoreRunId = syncRunIdRef.current
         const selectedCompetitors = snapCompetitors.filter((c) => snapSelectedIds.includes(c.id))
         const fresh = await fetchDashboardData(
@@ -310,7 +308,7 @@ export default function DashboardClient() {
     setIsPickingMore(false)
 
     const startedAt = Date.now()
-    const flags = { triggerFailed: false, rendered: false }
+    const flags = { rendered: false, finalizing: false }
 
     const clearPolling = () => {
       if (pollIntervalRef.current !== null) {
@@ -321,7 +319,6 @@ export default function DashboardClient() {
 
     const pollOnce = async (): Promise<void> => {
       if (syncRunIdRef.current !== runId) {
-        clearPolling()
         return
       }
       if (Date.now() - startedAt > MAX_RUN_MS) {
@@ -336,97 +333,82 @@ export default function DashboardClient() {
       }
       try {
         const result = await fetchDashboardData(userEmail, companyDomain, selectedCompetitors)
-        if (syncRunIdRef.current !== runId) return
+        if (syncRunIdRef.current !== runId || flags.finalizing) return
         if (result.success && result.dashboard) {
           flags.rendered = true
-          if (flags.triggerFailed) {
-            // API 1 response was dropped — data has appeared, so finish here.
-            clearPolling()
-            populateDashboardFromGet(result.dashboard)
-            setIsFetchingAds(false)
-          } else {
-            // Render the currently available data while API 1 keeps running.
-            setDashboard(result.dashboard)
-            setAds(result.dashboard.ads)
-            setInactiveCompetitorIds([])
-            setHasFetchedAds(true)
-          }
+          // Render the currently available data while API 1 keeps running.
+          setDashboard(result.dashboard)
+          setAds(result.dashboard.ads)
+          setInactiveCompetitorIds([])
+          setHasFetchedAds(true)
         }
       } catch {
         // transient polling failure — try again on the next 20s tick
       }
     }
 
-    // STEP 2: start the 20-second API 2 polling immediately (while API 1 runs)
+    const triggerPayload = {
+      companyName: companyDomain,
+      email: userEmail,
+      competitorDetails: selectedCompetitors.map((comp) => ({
+        company_domain_url: companyDomain,
+        company_name: companyDomain,
+        competitor_description: comp.description || '',
+        competitor_domain_url: comp.domain,
+        name: comp.name,
+      })),
+    }
+
+    // STEP 1: fire API 1, then immediately begin the 20-second API 2 polling
+    // while API 1 continues executing.
+    const triggerRequest = fetch(ADS_TRIGGER_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': ADS_TRIGGER_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(triggerPayload),
+      cache: 'no-store',
+    })
     clearPolling()
     pollIntervalRef.current = setInterval(() => {
       void pollOnce()
     }, POLL_INTERVAL_MS)
 
-    // STEP 1 + 3: fire API 1 with the exact payload structure and await it
+    // STEP 3: await API 1 and only then perform the final API 2 fetch.
+    let triggerSucceeded = false
     try {
-      const triggerPayload = {
-        companyName: companyDomain,
-        email: userEmail,
-        competitorDetails: selectedCompetitors.map((comp) => ({
-          company_domain_url: companyDomain,
-          company_name: companyDomain,
-          competitor_description: comp.description || '',
-          competitor_domain_url: comp.domain,
-          name: comp.name,
-        })),
-      }
-
-      const response = await fetch(ADS_TRIGGER_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': ADS_TRIGGER_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(triggerPayload),
-        cache: 'no-store',
-      })
-      if (syncRunIdRef.current !== runId) {
-        clearPolling()
-        return
-      }
-      let triggerSucceeded = false
+      const response = await triggerRequest
       if (response.ok) {
         const payload: unknown = await response.json()
         triggerSucceeded = isTriggerSuccess(payload)
       }
-      if (syncRunIdRef.current !== runId) {
-        clearPolling()
-        return
-      }
-      if (triggerSucceeded) {
-        // Final API 2 trigger: stop polling and fetch the completed dataset
-        clearPolling()
-        const final = await fetchDashboardData(userEmail, companyDomain, selectedCompetitors)
-        if (syncRunIdRef.current !== runId) return
-        if (final.success && final.dashboard) {
-          populateDashboardFromGet(final.dashboard)
-        } else if (!flags.rendered) {
-          setAdsError(final.error ?? 'No ads data was returned for this analysis. Please try again.')
-        }
-        setIsFetchingAds(false)
-        return
-      }
-      // API 1 responded without the success shape — keep polling; the workflow
-      // may still be writing data server-side.
-      flags.triggerFailed = true
-      if (flags.rendered) {
-        clearPolling()
-        setIsFetchingAds(false)
+    } catch {
+      // API 1 may time out at the browser/gateway while continuing server-side.
+      // Keep the interval alive so available database data can still render.
+    }
+    if (syncRunIdRef.current !== runId) {
+      return
+    }
+    if (!triggerSucceeded) return
+
+    // Final API 2 trigger: stop polling and fetch the completed dataset.
+    flags.finalizing = true
+    clearPolling()
+    try {
+      const final = await fetchDashboardData(userEmail, companyDomain, selectedCompetitors)
+      if (syncRunIdRef.current !== runId) return
+      if (final.success && final.dashboard) {
+        populateDashboardFromGet(final.dashboard)
+      } else {
+        setAdsError(final.error ?? 'No ads data was returned for this analysis. Please try again.')
       }
     } catch {
-      // API 1 fetch was dropped by a gateway/browser timeout — the workflow
-      // keeps running server-side, so rely on the 20-second polling.
-      flags.triggerFailed = true
-      if (flags.rendered) {
-        clearPolling()
-        setIsFetchingAds(false)
+      if (syncRunIdRef.current === runId) {
+        setAdsError('Something went wrong while fetching the completed ads data. Please try again.')
       }
+    } finally {
+      if (syncRunIdRef.current === runId) setIsFetchingAds(false)
     }
   }
 
@@ -494,7 +476,7 @@ export default function DashboardClient() {
           </p>
           <form onSubmit={handleListCompetitors} className="mt-4 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-400" />
               <input
                 type="text"
                 value={domain}
@@ -503,12 +485,16 @@ export default function DashboardClient() {
                   if (domainError) setDomainError('')
                 }}
                 placeholder="e.g. yourcompany.com"
-                className="ds-input"
-                style={{ paddingLeft: '44px' }}
+                className="h-11 w-full rounded-xl border border-grey-200 pl-9 pr-3 text-sm text-grey-900 placeholder:text-grey-400 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/30"
                 aria-label="Company domain"
               />
             </div>
-            <button type="submit" className="ds-btn-primary" disabled={isFetchingCompetitors}>
+            <button
+              type="submit"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 text-sm font-medium text-white transition duration-200 hover:bg-brand-700 active:bg-brand-800 focus:outline-none focus:ring-4 focus:ring-brand-600/30 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!domain.trim() || isFetchingCompetitors}
+            >
+              <Search className="h-4 w-4" />
               {isFetchingCompetitors ? 'Analyzing…' : 'List Competitors'}
             </button>
           </form>
@@ -525,7 +511,7 @@ export default function DashboardClient() {
         </section>
 
         {/* Refresh loading state — shown until the saved analysis is restored */}
-        {isRestoring && !hasSearched && !isFetchingCompetitors && (
+        {isRestoring && !isFetchingCompetitors && (
           <Spinner label="Loading your saved analysis…" />
         )}
 

@@ -7,6 +7,9 @@ const config: Config = {
       colors: {
         brand: {
           DEFAULT: '#1A73E8',
+          600: '#1A73E8',
+          700: '#155FC2',
+          800: '#104A99',
           hover: '#155FC2',
           pressed: '#104A99',
           surface: '#F3F8FE',

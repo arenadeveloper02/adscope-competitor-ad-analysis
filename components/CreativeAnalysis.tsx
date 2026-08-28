@@ -54,13 +54,13 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
   const competitorKeywordMap = new Map<string, Map<string, number>>()
   ads.forEach((ad) => {
     const kws = ad.keywords ?? []
-    if (kws.length === 0) return
     const perComp = competitorKeywordMap.get(ad.competitorName) ?? new Map<string, number>()
+    competitorKeywordMap.set(ad.competitorName, perComp)
+    if (kws.length === 0) return
     kws.forEach((k) => {
       overallKeywordCounts.set(k, (overallKeywordCounts.get(k) ?? 0) + 1)
       perComp.set(k, (perComp.get(k) ?? 0) + 1)
     })
-    competitorKeywordMap.set(ad.competitorName, perComp)
   })
   const topKeywords = Array.from(overallKeywordCounts.entries())
     .map(([keyword, count]) => ({ keyword, count }))

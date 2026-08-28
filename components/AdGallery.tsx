@@ -47,7 +47,7 @@ export default function AdGallery({
   const filtered = ads.filter((ad) => {
     if (format !== 'all' && deriveAdFormat(ad) !== format) return false
     if (!query) return true
-    const haystack = `${ad.headline} ${ad.copy} ${ad.cta ?? ''} ${ad.competitorName} ${ad.platform}`.toLowerCase()
+    const haystack = `${ad.headline} ${ad.copy} ${ad.cta ?? ''} ${ad.competitorName} ${ad.platform} ${ad.keywords?.join(' ') ?? ''}`.toLowerCase()
     return haystack.includes(query)
   })
 

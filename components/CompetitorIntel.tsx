@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Building2, MousePointerClick, Target, Users } from 'lucide-react'
 import type { AdsDashboardData, Competitor, CompetitorAd } from '@/lib/types'
-import AdCard from '@/components/AdCard'
+import AdCard, { deriveAdFormat } from '@/components/AdCard'
 
 interface CompetitorIntelProps {
   data: AdsDashboardData
@@ -41,6 +41,26 @@ function hashString(input: string): number {
   return hash
 }
 
+function formatRelativeTime(date: Date): string {
+  const elapsedMs = Math.max(0, Date.now() - date.getTime())
+  const dayMs = 24 * 60 * 60 * 1000
+  const monthMs = 30 * dayMs
+  const yearMs = 365 * dayMs
+  if (elapsedMs < dayMs) return 'today'
+  if (elapsedMs < monthMs) return `${Math.floor(elapsedMs / dayMs)}d ago`
+  if (elapsedMs < yearMs) return `${Math.floor(elapsedMs / monthMs)}mo ago`
+  return `${Math.floor(elapsedMs / yearMs)}y ago`
+}
+
+function formatExactDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
+}
+
 export default function CompetitorIntel({
   data,
   ads,
@@ -58,6 +78,37 @@ export default function CompetitorIntel({
   const selected =
     selectedId === 'all' ? null : scorecards.find((s) => s.competitorId === selectedId) ?? null
   const landscapeMax = Math.max(1, ...scorecards.map((s) => s.totalAds))
+  const selectedAds = selected
+    ? adsList.filter((ad) => ad.competitorId === selected.competitorId)
+    : adsList
+  const selectedTotalAds = selected?.totalAds ?? data.kpis.totalAds
+  const allTrackedAds = Math.max(0, data.kpis.totalAds)
+  const adVolumePct = allTrackedAds > 0 ? Math.round((selectedTotalAds / allTrackedAds) * 100) : 0
+  const activeAds = selected
+    ? selectedAds.filter((ad) => ad.active ?? true).length
+    : adsList.filter((ad) => ad.active ?? true).length
+  const activePct = selectedTotalAds > 0 ? Math.round((activeAds / selectedTotalAds) * 100) : 0
+  const pausedAds = Math.max(0, selectedTotalAds - activeAds)
+  const runningPct = selectedTotalAds > 0 ? Math.round((activeAds / selectedTotalAds) * 100) : 0
+  const ctaCounts = new Map<string, number>()
+  selectedAds.forEach((ad) => {
+    const cta = ad.cta?.trim()
+    if (cta) ctaCounts.set(cta, (ctaCounts.get(cta) ?? 0) + 1)
+  })
+  const topCtas = Array.from(ctaCounts.entries()).sort((a, b) => b[1] - a[1])
+  const latestIntel = selectedAds
+    .map((ad) => ({ ad, date: ad.date ? new Date(ad.date) : null }))
+    .filter((entry): entry is { ad: CompetitorAd; date: Date } => entry.date !== null && !Number.isNaN(entry.date.getTime()))
+    .sort((a, b) => b.date.getTime() - a.date.getTime())[0]
+  const formatCounts = new Map<string, number>()
+  selectedAds.forEach((ad) => {
+    const format = deriveAdFormat(ad)
+    formatCounts.set(format, (formatCounts.get(format) ?? 0) + 1)
+  })
+  const primaryFormat = Array.from(formatCounts.entries()).sort((a, b) => b[1] - a[1])[0]
+  const primaryFormatPct = selectedTotalAds > 0 && primaryFormat
+    ? Math.round((primaryFormat[1] / selectedTotalAds) * 100)
+    : 0
 
   const seed = hashString(selected ? selected.domain : 'all-competitors')
   const valueProp = VALUE_PROPS[seed % VALUE_PROPS.length] ?? ''
@@ -111,6 +162,73 @@ export default function CompetitorIntel({
             {card.name}
           </button>
         ))}
+      </div>
+
+      {/* Selected competitor KPI grid */}
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="ds-card p-4">
+          <p className="text-xs font-medium tracking-wide text-grey-500">AD VOLUME</p>
+          <p className="mt-2 text-2xl font-semibold text-grey-900">{selectedTotalAds}</p>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-grey-100">
+            <div className="h-full rounded-full bg-brand" style={{ width: `${adVolumePct}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-grey-500">
+            {adVolumePct}% of all {allTrackedAds} tracked ads
+          </p>
+        </div>
+
+        <div className="ds-card p-4">
+          <p className="text-xs font-medium tracking-wide text-grey-500">ACTIVE NOW</p>
+          <div className="mt-2 flex items-center gap-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${activeAds > 0 ? 'bg-success' : 'bg-grey-300'}`}
+              aria-label={activeAds > 0 ? 'Ads are running' : 'No ads are running'}
+            />
+            <p className="text-2xl font-semibold text-grey-900">
+              {activeAds} / {selectedTotalAds} live
+            </p>
+          </div>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-grey-100">
+            <div className="h-full rounded-full bg-success" style={{ width: `${activePct}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-grey-500">
+            {runningPct}% running • {pausedAds} paused
+          </p>
+        </div>
+
+        <div className="ds-card p-4">
+          <p className="text-xs font-medium tracking-wide text-grey-500">TOP CTA</p>
+          {topCtas[0] ? (
+            <>
+              <p className="mt-2 truncate text-lg font-semibold text-grey-900">{topCtas[0][0]}</p>
+              <p className="mt-1 text-xs text-grey-500">
+                Used by {topCtas[0][1]} ads
+              </p>
+              <p className="mt-3 truncate text-xs text-grey-600">
+                2nd most used: {topCtas[1] ? `${topCtas[1][0]} (${topCtas[1][1]})` : '—'}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-grey-500">No CTA data available</p>
+          )}
+        </div>
+
+        <div className="ds-card p-4">
+          <p className="text-xs font-medium tracking-wide text-grey-500">LATEST INTEL</p>
+          {latestIntel ? (
+            <>
+              <p className="mt-2 text-lg font-semibold text-grey-900">
+                Last seen {formatRelativeTime(latestIntel.date)}
+              </p>
+              <p className="mt-1 text-xs text-grey-500">{formatExactDate(latestIntel.date)}</p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-grey-500">Last seen unavailable</p>
+          )}
+          <p className="mt-3 text-xs text-grey-600">
+            Primary format: {primaryFormat ? `${primaryFormat[0].charAt(0).toUpperCase()}${primaryFormat[0].slice(1)} (${primaryFormatPct}%)` : 'N/A (0%)'}
+          </p>
+        </div>
       </div>
 
       {/* Competitive Landscape ad distribution */}
