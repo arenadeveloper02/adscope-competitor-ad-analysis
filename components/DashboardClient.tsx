@@ -526,7 +526,11 @@ export default function DashboardClient() {
                   Competitors found ({competitors.length})
                 </h2>
               </div>
-              <button type="button" className="ds-btn-secondary" onClick={() => setIsModalOpen(true)}>
+              <button
+                type="button"
+                className="ds-btn-secondary !border-transparent !bg-brand-600 !text-white hover:!bg-brand-700 active:!bg-brand-800"
+                onClick={() => setIsModalOpen(true)}
+              >
                 + Add Competitor
               </button>
             </div>
@@ -540,7 +544,7 @@ export default function DashboardClient() {
               <p className="text-xs text-grey-500">{selectedIds.length} selected</p>
               <button
                 type="button"
-                className="ds-btn-primary"
+                className="ds-btn-primary !bg-brand-600 !text-white hover:!bg-brand-700 active:!bg-brand-800"
                 onClick={() => void handleGetAdsForSelected()}
                 disabled={selectedIds.length === 0 || isFetchingAds}
               >
@@ -588,6 +592,7 @@ export default function DashboardClient() {
                 format={galleryFormat}
                 onSearchChange={setGallerySearch}
                 onFormatChange={setGalleryFormat}
+                competitorCount={viewDashboard.kpis.competitorCount}
               />
             )}
             {activeTab === 'competitors' && (

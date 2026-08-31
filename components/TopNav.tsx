@@ -87,7 +87,11 @@ export default function TopNav({
                 )}
               </div>
             )}
-            <button type="button" className="ds-btn-primary" onClick={onAddCompetitor}>
+            <button
+              type="button"
+              className="ds-btn-primary !bg-brand-600 !text-white hover:!bg-brand-700 active:!bg-brand-800"
+              onClick={onAddCompetitor}
+            >
               <Plus className="h-4 w-4" />
               Add Competitor
             </button>

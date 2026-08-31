@@ -392,7 +392,8 @@ export async function fetchDashboardData(
         activePct: totalAds > 0 ? Math.round((activeCount / totalAds) * 100) : 0,
         imageCreatives,
         videoCreatives,
-        competitorCount: bucketList.length,
+        // Selected rivals only — never include the entered company (competitor_name = self).
+        competitorCount: selectedCompetitors.length,
       },
       scorecards,
       heatmap,

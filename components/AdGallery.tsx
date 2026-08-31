@@ -19,6 +19,8 @@ interface AdGalleryProps {
   format: 'all' | AdFormat
   onSearchChange: (value: string) => void
   onFormatChange: (value: 'all' | AdFormat) => void
+  /** Unique competitors excluding the entered company (competitor_name = self). */
+  competitorCount?: number
 }
 
 const FORMAT_FILTERS: Array<{ id: 'all' | AdFormat; label: string }> = [
@@ -42,6 +44,7 @@ export default function AdGallery({
   format,
   onSearchChange,
   onFormatChange,
+  competitorCount: competitorCountProp,
 }: AdGalleryProps) {
   const query = search.trim().toLowerCase()
   const filtered = ads.filter((ad) => {
@@ -68,7 +71,13 @@ export default function AdGallery({
   const competitorShare = Array.from(shareMap.entries())
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
-  const competitorCount = competitorShare.length
+  const competitorCount =
+    competitorCountProp ??
+    new Set(
+      ads
+        .filter((ad) => ad.competitorName.trim().toLowerCase() !== 'self')
+        .map((ad) => ad.competitorId)
+    ).size
 
   const ctaMap = new Map<string, number>()
   ads.forEach((ad) => {
