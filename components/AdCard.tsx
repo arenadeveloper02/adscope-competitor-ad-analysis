@@ -47,7 +47,7 @@ export default function AdCard({ ad, onClick }: AdCardProps) {
         event.stopPropagation()
         onClick?.(ad)
       }}
-      className="ds-card flex h-full cursor-pointer flex-col p-4 text-left transition-shadow hover:shadow-md"
+      className="flex h-full cursor-pointer flex-col rounded-2xl border-2 border-grey-400 bg-white p-4 text-left shadow-md transition-shadow hover:shadow-lg"
     >
       <div className="flex items-center justify-between gap-2">
         <span

@@ -7,6 +7,7 @@ import { deriveAdFormat } from '@/components/AdCard'
 interface CreativeAnalysisProps {
   ads: CompetitorAd[]
   onFilterGallery: (format: 'all' | AdFormat, query: string) => void
+  onOpenCompetitors: (competitorName: string) => void
 }
 
 const STOP_WORDS = new Set([
@@ -28,8 +29,25 @@ const TAG_TONES: Array<{ bg: string; text: string }> = [
 
 const TAG_SIZES = ['text-base', 'text-xs', 'text-sm']
 
-export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnalysisProps) {
+function isEnteredCompanyAd(ad: CompetitorAd): boolean {
+  return (
+    ad.isSelf === true ||
+    ad.competitorName.trim().toLowerCase() === 'self' ||
+    ad.competitorId.startsWith('self-')
+  )
+}
+
+export default function CreativeAnalysis({ ads, onFilterGallery, onOpenCompetitors }: CreativeAnalysisProps) {
   const totalAds = ads.length
+  const enteredCompanyNames = new Set(
+    ads.filter(isEnteredCompanyAd).map((ad) => ad.competitorName)
+  )
+  const isEnteredCompanyName = (name: string) =>
+    name.trim().toLowerCase() === 'self' || enteredCompanyNames.has(name)
+  const openCompany = (name: string, query: string) => {
+    if (isEnteredCompanyName(name)) onFilterGallery('all', query)
+    else onOpenCompetitors(name)
+  }
 
   /* (image 1) Donut summary cards — computed from the real ads array */
   const imageCount = ads.filter((ad) => deriveAdFormat(ad) === 'image').length
@@ -223,9 +241,13 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                           <button
                             key={`${column.name}-${entry.keyword}`}
                             type="button"
-                            onClick={() => onFilterGallery('all', entry.keyword)}
+                            onClick={() => openCompany(column.name, entry.keyword)}
                             className="block w-full cursor-pointer text-left"
-                            title={`Search the gallery for \"${entry.keyword}\"`}
+                            title={
+                              isEnteredCompanyName(column.name)
+                                ? `Search the gallery for "${entry.keyword}"`
+                                : `View ${column.name} in Competitors`
+                            }
                           >
                             <div className="flex items-center justify-between text-xs text-grey-700">
                               <span className="truncate font-medium">{entry.keyword}</span>
@@ -245,9 +267,13 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                       </div>
                       <button
                         type="button"
-                        onClick={() => onFilterGallery('all', column.name)}
+                        onClick={() => openCompany(column.name, column.name)}
                         className="mt-3 w-full cursor-pointer rounded-lg border border-grey-200 px-3 py-2 text-center text-xs font-semibold text-brand transition-colors hover:bg-brand-surface"
-                        title={`View all ${columnAdTotal} ads from ${column.name} in the Ad Gallery`}
+                        title={
+                          isEnteredCompanyName(column.name)
+                            ? `View all ${columnAdTotal} ads from ${column.name} in the Ad Gallery`
+                            : `View ${column.name} ads in Competitors`
+                        }
                       >
                         View all {columnAdTotal} ads
                       </button>
@@ -333,7 +359,7 @@ export default function CreativeAnalysis({ ads, onFilterGallery }: CreativeAnaly
                       <li key={`${column.name}-${headline}`}>
                         <button
                           type="button"
-                          onClick={() => onFilterGallery('all', headline)}
+                          onClick={() => openCompany(column.name, headline)}
                           className="flex w-full cursor-pointer items-start gap-2 text-left text-xs leading-5 text-grey-700 transition-colors hover:text-brand"
                         >
                           <Quote className="mt-0.5 h-3 w-3 shrink-0 text-grey-400" />

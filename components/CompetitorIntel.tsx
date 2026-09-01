@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Building2, MousePointerClick, Target, Users } from 'lucide-react'
-import type { AdsDashboardData, Competitor, CompetitorAd } from '@/lib/types'
+import type { AdFormat, AdPlatform, AdsDashboardData, Competitor, CompetitorAd } from '@/lib/types'
 import AdCard, { deriveAdFormat } from '@/components/AdCard'
 
 interface CompetitorIntelProps {
@@ -11,7 +11,22 @@ interface CompetitorIntelProps {
   competitors?: Competitor[]
   onFindInGallery: (query: string) => void
   onAdClick?: (ad: CompetitorAd) => void
+  focusCompetitorName?: string
+  focusNonce?: number
 }
+
+const FORMAT_FILTERS: Array<{ id: 'all' | AdFormat; label: string }> = [
+  { id: 'all', label: 'All Formats' },
+  { id: 'image', label: 'Image' },
+  { id: 'text', label: 'Text' },
+  { id: 'video', label: 'Video' },
+]
+
+const PLATFORM_FILTERS: Array<{ id: 'all' | AdPlatform; label: string }> = [
+  { id: 'all', label: 'All Platforms' },
+  { id: 'Google Ads', label: 'Google Ads' },
+  { id: 'Meta', label: 'Meta' },
+]
 
 const VALUE_PROPS: string[] = [
   'Leads with speed-to-value messaging — promising measurable results within the first weeks of adoption.',
@@ -68,8 +83,12 @@ export default function CompetitorIntel({
   competitors,
   onFindInGallery,
   onAdClick,
+  focusCompetitorName,
+  focusNonce,
 }: CompetitorIntelProps) {
   const [selectedId, setSelectedId] = useState<string>('all')
+  const [format, setFormat] = useState<'all' | AdFormat>('all')
+  const [platform, setPlatform] = useState<'all' | AdPlatform>('all')
 
   // Fall back to the dashboard dataset when the caller does not pass explicit
   // ads / competitors props (e.g. when rendering directly from dashboard data).
@@ -77,6 +96,21 @@ export default function CompetitorIntel({
   const competitorList: Competitor[] = competitors ?? []
 
   const scorecards = data.scorecards
+
+  useEffect(() => {
+    const name = focusCompetitorName?.trim()
+    if (!name) return
+    const lower = name.toLowerCase()
+    const fromCard = data.scorecards.find(
+      (card) => card.name === name || card.name.toLowerCase() === lower
+    )
+    const fromAd = adsList.find(
+      (ad) => ad.competitorName === name || ad.competitorName.toLowerCase() === lower
+    )
+    const id = fromCard?.competitorId ?? fromAd?.competitorId
+    if (id) setSelectedId(id)
+  }, [focusCompetitorName, focusNonce, data.scorecards, adsList])
+
   const selected =
     selectedId === 'all' ? null : scorecards.find((s) => s.competitorId === selectedId) ?? null
   const landscapeMax = Math.max(1, ...scorecards.map((s) => s.totalAds))
@@ -132,7 +166,9 @@ export default function CompetitorIntel({
     (ad) =>
       ad.isSelf !== true &&
       ad.competitorName.trim().toLowerCase() !== 'self' &&
-      !ad.competitorId.startsWith('self-')
+      !ad.competitorId.startsWith('self-') &&
+      (format === 'all' || deriveAdFormat(ad) === format) &&
+      (platform === 'all' || ad.platform === platform)
   )
 
   return (
@@ -143,7 +179,7 @@ export default function CompetitorIntel({
       </div>
 
       {/* Competitor switcher pills */}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setSelectedId('all')}
@@ -173,7 +209,7 @@ export default function CompetitorIntel({
 
       {/* Selected competitor KPI grid */}
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="ds-card p-4">
+        <div className="ds-card border border-grey-300 p-4">
           <p className="text-xs font-medium tracking-wide text-grey-500">AD VOLUME</p>
           <p className="mt-2 text-2xl font-semibold text-grey-900">{selectedTotalAds}</p>
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-grey-100">
@@ -184,7 +220,7 @@ export default function CompetitorIntel({
           </p>
         </div>
 
-        <div className="ds-card p-4">
+        <div className="ds-card border border-grey-300 p-4">
           <p className="text-xs font-medium tracking-wide text-grey-500">ACTIVE NOW</p>
           <div className="mt-2 flex items-center gap-2">
             <span
@@ -203,7 +239,7 @@ export default function CompetitorIntel({
           </p>
         </div>
 
-        <div className="ds-card p-4">
+        <div className="ds-card border border-grey-300 p-4">
           <p className="text-xs font-medium tracking-wide text-grey-500">TOP CTA</p>
           {topCtas[0] ? (
             <>
@@ -220,7 +256,7 @@ export default function CompetitorIntel({
           )}
         </div>
 
-        <div className="ds-card p-4">
+        <div className="ds-card border border-grey-300 p-4">
           <p className="text-xs font-medium tracking-wide text-grey-500">LATEST INTEL</p>
           {latestIntel ? (
             <>
@@ -358,11 +394,42 @@ export default function CompetitorIntel({
             <span className="ml-2 text-sm font-medium text-grey-500">{competitorAds.length}</span>
           ) : null}
         </h3>
+        <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-2">
+          {FORMAT_FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => setFormat(filter.id)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                format === filter.id
+                  ? 'bg-brand text-white'
+                  : 'border border-grey-200 bg-white text-grey-700 hover:bg-grey-50'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+          <span className="mx-0.5 hidden h-4 w-px bg-grey-300 sm:inline-block" aria-hidden="true" />
+          {PLATFORM_FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              onClick={() => setPlatform(filter.id)}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                platform === filter.id
+                  ? 'bg-brand text-white'
+                  : 'border border-grey-200 bg-white text-grey-700 hover:bg-grey-50'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
         {competitorAds.length === 0 ? (
           <div className="ds-card mt-3 p-10 text-center">
-            <p className="text-sm font-medium text-grey-700">No ads for this selection yet</p>
+            <p className="text-sm font-medium text-grey-700">No ads match this selection</p>
             <p className="mt-1 text-xs text-grey-500">
-              Run an analysis with this competitor selected to see its creatives.
+              Try a different competitor, format, or platform filter.
             </p>
           </div>
         ) : (

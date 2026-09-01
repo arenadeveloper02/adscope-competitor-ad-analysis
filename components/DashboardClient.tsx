@@ -85,6 +85,7 @@ export default function DashboardClient() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('insights')
   const [gallerySearch, setGallerySearch] = useState('')
   const [galleryFormat, setGalleryFormat] = useState<'all' | AdFormat>('all')
+  const [competitorFocus, setCompetitorFocus] = useState({ name: '', nonce: 0 })
   // Re-displays the competitor selection table after the dashboard has loaded
   const [isPickingMore, setIsPickingMore] = useState(false)
   // Competitors temporarily excluded from the dashboard analysis view.
@@ -433,6 +434,11 @@ export default function DashboardClient() {
     setActiveTab('gallery')
   }
 
+  const handleOpenCompetitors = (competitorName: string) => {
+    setCompetitorFocus((current) => ({ name: competitorName, nonce: current.nonce + 1 }))
+    setActiveTab('competitors')
+  }
+
   const handleFindInGallery = (query: string) => {
     handleFilterGallery('all', query)
   }
@@ -605,10 +611,16 @@ export default function DashboardClient() {
                 competitors={competitors}
                 onFindInGallery={handleFindInGallery}
                 onAdClick={setSelectedAd}
+                focusCompetitorName={competitorFocus.name}
+                focusNonce={competitorFocus.nonce}
               />
             )}
             {activeTab === 'creative' && (
-              <CreativeAnalysis ads={viewDashboard.ads} onFilterGallery={handleFilterGallery} />
+              <CreativeAnalysis
+                ads={viewDashboard.ads}
+                onFilterGallery={handleFilterGallery}
+                onOpenCompetitors={handleOpenCompetitors}
+              />
             )}
           </>
         )}
