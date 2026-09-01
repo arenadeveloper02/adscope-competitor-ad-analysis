@@ -126,7 +126,14 @@ export default function CompetitorIntel({
   const recentAds = (selected
     ? adsList.filter((ad) => ad.competitorId === selected.competitorId)
     : adsList
-  ).slice(0, 6)
+  )
+    .filter(
+      (ad) =>
+        ad.isSelf !== true &&
+        ad.competitorName.trim().toLowerCase() !== 'self' &&
+        !ad.competitorId.startsWith('self-')
+    )
+    .slice(0, 6)
 
   return (
     <div className="mt-8">

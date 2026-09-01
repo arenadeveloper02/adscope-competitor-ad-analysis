@@ -23,6 +23,8 @@ export interface CompetitorAd {
   landingPage?: string
   /** Keyword data parsed from the Get workflow response for this creative */
   keywords?: string[]
+  /** True when this creative belongs to the entered company (competitor_name = self). */
+  isSelf?: boolean
 }
 
 export interface ActionResult {

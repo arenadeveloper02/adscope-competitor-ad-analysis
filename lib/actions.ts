@@ -566,6 +566,7 @@ function buildDashboard(
         headline: ad.headline,
         copy: ad.copy,
         platform: ad.platform,
+        isSelf: competitor.isSelf === true,
       }))
       imageCount = matched.filter((a) => a.format === 'image').length
       textCount = matched.filter((a) => a.format === 'text').length
@@ -597,6 +598,7 @@ function buildDashboard(
             AD_COPIES[(seed + i * 3) % AD_COPIES.length] ??
             'Launch high-performing campaigns in minutes with AI-assisted creative.',
           platform: AD_PLATFORMS[(seed + i) % AD_PLATFORMS.length] ?? 'Google Ads',
+          isSelf: competitor.isSelf === true,
         })
       }
       imageCount = Math.max(1, Math.round(total * 0.5))

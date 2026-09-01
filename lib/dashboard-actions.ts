@@ -181,18 +181,29 @@ export async function fetchDashboardData(
     const keywordCounts = new Map<string, number>()
     const themeCounts = new Map<string, number>()
     const domainById = new Map<string, string>()
+    const companyDomain = cleanDomainValue(companyName)
+    const companyLabel = companyDomain.split('.')[0] ?? ''
 
     records.forEach((record, recordIndex) => {
       const rows = extractCreativeRows(record)
       rows.forEach((row, rowIndex) => {
         const rowDomain = cleanDomainValue(cell(row, COL_DOMAIN))
         const rowName = cell(row, COL_NAME)
-        const matched = byDomain.get(rowDomain) ?? byName.get(rowName.toLowerCase())
+        const isSelfRow = rowName.toLowerCase() === 'self'
+        const matched = isSelfRow
+          ? undefined
+          : byDomain.get(rowDomain) ?? byName.get(rowName.toLowerCase())
         const competitorId = matched
           ? matched.id
           : `comp-db-${rowDomain || rowName.toLowerCase() || String(recordIndex)}`
         const competitorName = matched ? matched.name : rowName || rowDomain || 'Unknown'
         domainById.set(competitorId, matched ? matched.domain : rowDomain)
+        const isSelf =
+          isSelfRow ||
+          (!matched &&
+            ((companyDomain.length > 0 && rowDomain === companyDomain) ||
+              (companyLabel.length > 0 &&
+                (rowName.toLowerCase() === companyLabel || rowName.toLowerCase() === companyDomain))))
 
         const headline =
           cell(row, COL_HEADLINE) ||
@@ -225,6 +236,7 @@ export async function fetchDashboardData(
           cta: cta || undefined,
           landingPage: landingPage || undefined,
           keywords: rowKeywords.length > 0 ? rowKeywords : undefined,
+          isSelf,
         })
 
         rowKeywords.forEach((k) => keywordCounts.set(k, (keywordCounts.get(k) ?? 0) + 1))

@@ -47,7 +47,12 @@ export default function AdGallery({
   competitorCount: competitorCountProp,
 }: AdGalleryProps) {
   const query = search.trim().toLowerCase()
-  const filtered = ads.filter((ad) => {
+  const isEnteredCompanyAd = (ad: CompetitorAd) =>
+    ad.isSelf === true ||
+    ad.competitorName.trim().toLowerCase() === 'self' ||
+    ad.competitorId.startsWith('self-')
+  const galleryAds = ads.filter(isEnteredCompanyAd)
+  const filtered = galleryAds.filter((ad) => {
     if (format !== 'all' && deriveAdFormat(ad) !== format) return false
     if (!query) return true
     const haystack = `${ad.headline} ${ad.copy} ${ad.cta ?? ''} ${ad.competitorName} ${ad.platform} ${ad.keywords?.join(' ') ?? ''}`.toLowerCase()
