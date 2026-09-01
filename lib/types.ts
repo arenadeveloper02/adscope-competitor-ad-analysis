@@ -25,6 +25,30 @@ export interface CompetitorAd {
   keywords?: string[]
   /** True when this creative belongs to the entered company (competitor_name = self). */
   isSelf?: boolean
+  /** Raw creative id from the Get workflow (e.g. CR01573459009736802305). */
+  externalAdId?: string
+  /**
+   * Column 13 from the Get workflow — Google `simgad` screenshot (or other
+   * creative still). This is image 1 in the card and click-to-open preview.
+   */
+  imageUrl?: string
+  /**
+   * Exact Ads Transparency / Ad Library URL copied from the Get workflow row.
+   * Never synthesized — only set when the DB already contains the full URL.
+   */
+  adUrl?: string
+  images?: string[]
+  videos?: string[]
+  region?: string
+  lastShown?: string
+  language?: string
+  impressions?: string
+  valueProposition?: string
+  services?: string[]
+  pricing?: string
+  audience?: string
+  about?: string
+  messagingAngles?: string[]
 }
 
 export interface ActionResult {

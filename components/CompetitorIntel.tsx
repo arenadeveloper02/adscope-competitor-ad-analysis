@@ -10,6 +10,7 @@ interface CompetitorIntelProps {
   ads?: CompetitorAd[]
   competitors?: Competitor[]
   onFindInGallery: (query: string) => void
+  onAdClick?: (ad: CompetitorAd) => void
 }
 
 const VALUE_PROPS: string[] = [
@@ -66,6 +67,7 @@ export default function CompetitorIntel({
   ads,
   competitors,
   onFindInGallery,
+  onAdClick,
 }: CompetitorIntelProps) {
   const [selectedId, setSelectedId] = useState<string>('all')
 
@@ -123,17 +125,15 @@ export default function CompetitorIntel({
       `${selected.name} (${selected.domain}) is an active player in this market with ${selected.totalAds} tracked ads, ${selected.activeAds} of which are currently live.`
     : `Aggregate intelligence across ${scorecards.length} tracked companies covering ${data.kpis.totalAds} ads.`
 
-  const recentAds = (selected
+  const competitorAds = (selected
     ? adsList.filter((ad) => ad.competitorId === selected.competitorId)
     : adsList
+  ).filter(
+    (ad) =>
+      ad.isSelf !== true &&
+      ad.competitorName.trim().toLowerCase() !== 'self' &&
+      !ad.competitorId.startsWith('self-')
   )
-    .filter(
-      (ad) =>
-        ad.isSelf !== true &&
-        ad.competitorName.trim().toLowerCase() !== 'self' &&
-        !ad.competitorId.startsWith('self-')
-    )
-    .slice(0, 6)
 
   return (
     <div className="mt-8">
@@ -350,12 +350,15 @@ export default function CompetitorIntel({
         </div>
       </div>
 
-      {/* Recent Ads for the selected competitor */}
+      {/* All ads for the selected competitor */}
       <div className="mt-6">
         <h3 className="text-base font-semibold text-grey-900">
-          Recent Ads{selected ? ` — ${selected.name}` : ''}
+          Ads{selected ? ` — ${selected.name}` : ''}
+          {competitorAds.length > 0 ? (
+            <span className="ml-2 text-sm font-medium text-grey-500">{competitorAds.length}</span>
+          ) : null}
         </h3>
-        {recentAds.length === 0 ? (
+        {competitorAds.length === 0 ? (
           <div className="ds-card mt-3 p-10 text-center">
             <p className="text-sm font-medium text-grey-700">No ads for this selection yet</p>
             <p className="mt-1 text-xs text-grey-500">
@@ -364,8 +367,8 @@ export default function CompetitorIntel({
           </div>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {recentAds.map((ad) => (
-              <AdCard key={ad.id} ad={ad} />
+            {competitorAds.map((ad) => (
+              <AdCard key={ad.id} ad={ad} onClick={onAdClick} />
             ))}
           </div>
         )}

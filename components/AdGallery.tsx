@@ -21,6 +21,7 @@ interface AdGalleryProps {
   onFormatChange: (value: 'all' | AdFormat) => void
   /** Unique competitors excluding the entered company (competitor_name = self). */
   competitorCount?: number
+  onAdClick?: (ad: CompetitorAd) => void
 }
 
 const FORMAT_FILTERS: Array<{ id: 'all' | AdFormat; label: string }> = [
@@ -45,6 +46,7 @@ export default function AdGallery({
   onSearchChange,
   onFormatChange,
   competitorCount: competitorCountProp,
+  onAdClick,
 }: AdGalleryProps) {
   const query = search.trim().toLowerCase()
   const isEnteredCompanyAd = (ad: CompetitorAd) =>
@@ -274,7 +276,7 @@ export default function AdGallery({
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((ad) => (
-            <AdCard key={ad.id} ad={ad} />
+            <AdCard key={ad.id} ad={ad} onClick={onAdClick} />
           ))}
         </div>
       )}

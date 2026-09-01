@@ -17,6 +17,7 @@ import { loadDashboardSnapshot, saveDashboardSnapshot } from '@/lib/snapshot-act
 import { useArenaEmailId } from '@/components/arena-email-provider'
 import AddCompetitorModal from '@/components/AddCompetitorModal'
 import AdGallery from '@/components/AdGallery'
+import AdDetailModal from '@/components/AdDetailModal'
 import AdsDashboard from '@/components/AdsDashboard'
 import CompetitorIntel from '@/components/CompetitorIntel'
 import CompetitorsTable from '@/components/CompetitorsTable'
@@ -80,6 +81,7 @@ export default function DashboardClient() {
   const [hasSearched, setHasSearched] = useState(false)
   const [hasFetchedAds, setHasFetchedAds] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedAd, setSelectedAd] = useState<CompetitorAd | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('insights')
   const [gallerySearch, setGallerySearch] = useState('')
   const [galleryFormat, setGalleryFormat] = useState<'all' | AdFormat>('all')
@@ -593,6 +595,7 @@ export default function DashboardClient() {
                 onSearchChange={setGallerySearch}
                 onFormatChange={setGalleryFormat}
                 competitorCount={viewDashboard.kpis.competitorCount}
+                onAdClick={setSelectedAd}
               />
             )}
             {activeTab === 'competitors' && (
@@ -601,6 +604,7 @@ export default function DashboardClient() {
                 ads={viewDashboard.ads}
                 competitors={competitors}
                 onFindInGallery={handleFindInGallery}
+                onAdClick={setSelectedAd}
               />
             )}
             {activeTab === 'creative' && (
@@ -615,6 +619,7 @@ export default function DashboardClient() {
         onClose={() => setIsModalOpen(false)}
         onAdd={handleAddCompetitor}
       />
+      <AdDetailModal ad={selectedAd} onClose={() => setSelectedAd(null)} />
     </div>
   )
 }

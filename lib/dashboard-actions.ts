@@ -1,5 +1,6 @@
 'use server'
 
+import { isStoredTransparencyUrl, splitIntelItems } from '@/lib/ad-display'
 import type {
   AdFormat,
   AdPlatform,
@@ -37,10 +38,22 @@ const COL_SUBHEADLINE = 7
 const COL_COPY = 8
 const COL_CTA = 9
 const COL_LANDING_PAGE = 12
+const COL_IMAGE = 13
+const COL_VIDEO = 14
+const COL_THUMB = 15
+const COL_MEDIA_EXTRA = 16
+const COL_REGION = 17
 const COL_START_DATE = 19
+const COL_END_DATE = 20
 const COL_STATUS = 22
 const COL_VALUE_PROPS = 23
+const COL_OFFER = 24
+const COL_SERVICES = 25
 const COL_KEYWORDS = 26
+const COL_ABOUT = 29
+const COL_SERVICES_ALT = 30
+const COL_PRICING = 31
+const COL_AUDIENCE = 32
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -58,9 +71,123 @@ function cleanDomainValue(input: string): string {
     .toLowerCase()
 }
 
+function stringifyCell(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === '[object Object]' || trimmed === 'null' || trimmed === 'undefined') {
+      return ''
+    }
+    if (
+      (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+      (trimmed.startsWith('{') && trimmed.endsWith('}'))
+    ) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed)
+        if (parsed !== null && typeof parsed !== 'string') {
+          const nested = stringifyCell(parsed)
+          if (nested) return nested
+        }
+      } catch {
+        // keep the original string
+      }
+    }
+    return trimmed
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    return value.map(stringifyCell).filter(Boolean).join('; ')
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    for (const key of ['text', 'value', 'name', 'label', 'description', 'content', 'summary', 'about']) {
+      const inner = stringifyCell(record[key])
+      if (inner) return inner
+    }
+    return Object.values(record).map(stringifyCell).filter(Boolean).join('; ')
+  }
+  return ''
+}
+
 function cell(row: unknown[], index: number): string {
-  const value = row[index]
-  return typeof value === 'string' ? value.trim() : ''
+  return stringifyCell(row[index])
+}
+
+function firstMeaningful(...values: string[]): string {
+  for (const value of values) {
+    const trimmed = value.trim()
+    if (!trimmed) continue
+    if (/^untitled(\s+ad)?$/i.test(trimmed)) continue
+    return trimmed
+  }
+  return ''
+}
+
+function splitUrls(raw: string): string[] {
+  const normalized = raw.replace(/%20/gi, ' ')
+  return normalized
+    .split(/[,|\s]+/)
+    .map((part) => part.trim())
+    .filter((part) => /^https?:\/\//i.test(part))
+}
+
+function extractSimgadUrls(raw: string): string[] {
+  const matches = [...raw.replace(/%20/gi, ' ').matchAll(/tpc\.googlesyndication\.com\/archive\/simgad\/(\d+)/gi)]
+  const seen = new Set<string>()
+  const urls: string[] = []
+  for (const match of matches) {
+    const id = match[1]
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    urls.push(`https://tpc.googlesyndication.com/archive/simgad/${id}`)
+  }
+  return urls
+}
+
+function isVideoUrl(url: string): boolean {
+  return (
+    /\.(mp4|webm|mov)(\?|$)/i.test(url) ||
+    /\/video|fbcdn\.net\/.*\.mp4|googlevideo|youtube|youtu\.be|vimeo/i.test(url)
+  )
+}
+
+function isSimgadUrl(url: string): boolean {
+  return /^https?:\/\/tpc\.googlesyndication\.com\/archive\/simgad\/\d+\/?$/i.test(url)
+}
+
+
+function findUrlInRow(row: unknown[], test: (url: string) => boolean): string {
+  for (let index = 0; index < row.length; index += 1) {
+    const raw = cell(row, index)
+    const urls = [
+      ...extractSimgadUrls(raw),
+      ...splitUrls(raw),
+      ...[...raw.replace(/%20/gi, ' ').matchAll(/https?:\/\/[^\s"'<>\\]+/gi)].map((match) =>
+        match[0].replace(/[),.;]+$/, '')
+      ),
+    ]
+    for (const url of urls) {
+      if (test(url)) return url
+    }
+  }
+  return ''
+}
+
+function collectMedia(row: unknown[]): { images: string[]; videos: string[] } {
+  const urls = [COL_IMAGE, COL_VIDEO, COL_THUMB, COL_MEDIA_EXTRA].flatMap((index) => {
+    const raw = cell(row, index)
+    return [...extractSimgadUrls(raw), ...splitUrls(raw)]
+  })
+  const seen = new Set<string>()
+  const images: string[] = []
+  const videos: string[] = []
+  for (const url of urls) {
+    if (seen.has(url)) continue
+    seen.add(url)
+    if (isVideoUrl(url)) videos.push(url)
+    else images.push(url)
+  }
+  return { images, videos }
 }
 
 function deriveFormat(creativeType: string): AdFormat {
@@ -68,6 +195,15 @@ function deriveFormat(creativeType: string): AdFormat {
   if (upper.includes('VIDEO')) return 'video'
   if (upper.includes('IMAGE') || upper.includes('DCO') || upper.includes('CAROUSEL')) return 'image'
   return 'text'
+}
+
+function isCreativeActive(status: string): boolean {
+  const value = status.trim().toLowerCase()
+  if (!value) return true
+  if (/(paused|inactive|disabled|ended|stopped|removed|disapproved|archived)/.test(value)) {
+    return false
+  }
+  return true
 }
 
 function derivePlatform(raw: string): AdPlatform {
@@ -205,23 +341,48 @@ export async function fetchDashboardData(
               (companyLabel.length > 0 &&
                 (rowName.toLowerCase() === companyLabel || rowName.toLowerCase() === companyDomain))))
 
+        const format = deriveFormat(cell(row, COL_CREATIVE_TYPE))
+        const formatLabel = format === 'video' ? 'Video Ad' : format === 'image' ? 'Image Ad' : 'Text Ad'
+        const rawCopy = cell(row, COL_COPY)
+        const messagingAngles = splitIntelItems(cell(row, COL_VALUE_PROPS))
+        const services = [
+          ...splitIntelItems(cell(row, COL_SERVICES)),
+          ...splitIntelItems(cell(row, COL_SERVICES_ALT)),
+        ].filter((item, index, list) => list.indexOf(item) === index)
         const headline =
-          cell(row, COL_HEADLINE) ||
-          cell(row, COL_SUBHEADLINE) ||
-          cell(row, COL_COPY).slice(0, 80) ||
-          'Untitled ad'
-        const copy = cell(row, COL_COPY) || cell(row, COL_SUBHEADLINE) || headline
+          firstMeaningful(
+            cell(row, COL_HEADLINE),
+            cell(row, COL_SUBHEADLINE),
+            rawCopy.slice(0, 80),
+            cell(row, COL_CTA),
+            messagingAngles[0] ?? '',
+            `${competitorName} ${formatLabel}`
+          ) || `${competitorName} ${formatLabel}`
+        const copy =
+          firstMeaningful(rawCopy, cell(row, COL_SUBHEADLINE), messagingAngles[0] ?? '') || headline
         const adId = cell(row, COL_AD_ID) || `${recordIndex}-${rowIndex}`
         const status = cell(row, COL_STATUS).toLowerCase()
         const startDate = cell(row, COL_START_DATE)
         const cta = cell(row, COL_CTA)
         const landingPage = cell(row, COL_LANDING_PAGE)
+        const media = collectMedia(row)
+        const imageUrl =
+          extractSimgadUrls(cell(row, COL_IMAGE))[0] ||
+          findUrlInRow(row, isSimgadUrl) ||
+          splitUrls(cell(row, COL_IMAGE)).find(isSimgadUrl) ||
+          ''
+        const adUrl = findUrlInRow(row, isStoredTransparencyUrl)
+        const valueProposition = firstMeaningful(cell(row, COL_OFFER), messagingAngles.slice(0, 3).join('; '))
+        const about = cell(row, COL_ABOUT)
+        const pricing = cell(row, COL_PRICING)
+        const audience = cell(row, COL_AUDIENCE)
+        const region = cell(row, COL_REGION)
+        const lastShown = cell(row, COL_END_DATE)
 
         // Per-ad keyword data from the Get response (used by Creative Analysis)
-        const rowKeywords = cell(row, COL_KEYWORDS)
-          .split(',')
-          .map((k) => k.trim())
-          .filter(Boolean)
+        const rowKeywords = splitIntelItems(cell(row, COL_KEYWORDS)).flatMap((item) =>
+          item.includes(',') ? item.split(',').map((part) => part.trim()) : [item]
+        ).filter((keyword) => keyword.length > 1 && keyword.length < 80)
 
         ads.push({
           id: `ad-${competitorId}-${adId}-${rowIndex}`,
@@ -230,13 +391,28 @@ export async function fetchDashboardData(
           headline,
           copy,
           platform: derivePlatform(cell(row, COL_PLATFORM)),
-          format: deriveFormat(cell(row, COL_CREATIVE_TYPE)),
-          active: status ? status === 'active' : true,
+          format,
+          active: isCreativeActive(status),
           date: startDate || undefined,
           cta: cta || undefined,
           landingPage: landingPage || undefined,
           keywords: rowKeywords.length > 0 ? rowKeywords : undefined,
           isSelf,
+          externalAdId: cell(row, COL_AD_ID) || undefined,
+          imageUrl: imageUrl || undefined,
+          adUrl: adUrl || undefined,
+          images: media.images.length > 0 ? media.images : undefined,
+          videos: media.videos.length > 0 ? media.videos : undefined,
+          region: region || undefined,
+          lastShown: lastShown || undefined,
+          language: 'English',
+          impressions: 'Not disclosed',
+          valueProposition: valueProposition || undefined,
+          services: services.length > 0 ? services : undefined,
+          pricing: pricing || undefined,
+          audience: audience || undefined,
+          about: about || undefined,
+          messagingAngles: messagingAngles.length > 0 ? messagingAngles : undefined,
         })
 
         rowKeywords.forEach((k) => keywordCounts.set(k, (keywordCounts.get(k) ?? 0) + 1))
