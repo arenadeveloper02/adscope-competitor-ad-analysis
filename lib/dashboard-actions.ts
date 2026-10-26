@@ -57,6 +57,9 @@ const COL_AUDIENCE = 32
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+/* Previous fix: the analysis window is restricted to the last 6 months. */
+const SIX_MONTHS_MS = 183 * 24 * 60 * 60 * 1000
+
 const STOP_WORDS = new Set([
   'the', 'and', 'for', 'with', 'your', 'you', 'our', 'that', 'this', 'from', 'are',
   'has', 'have', 'more', 'into', 'can', 'get', 'its', 'new', 'now', 'all', 'out', 'here',
@@ -150,11 +153,6 @@ function isVideoUrl(url: string): boolean {
     /\/video|fbcdn\.net\/.*\.mp4|googlevideo|youtube|youtu\.be|vimeo/i.test(url)
   )
 }
-
-function isSimgadUrl(url: string): boolean {
-  return /^https?:\/\/tpc\.googlesyndication\.com\/archive\/simgad\/\d+\/?$/i.test(url)
-}
-
 
 function findUrlInRow(row: unknown[], test: (url: string) => boolean): string {
   for (let index = 0; index < row.length; index += 1) {
@@ -355,165 +353,187 @@ export async function fetchDashboardData(
             cell(row, COL_SUBHEADLINE),
             rawCopy.slice(0, 80),
             cell(row, COL_CTA),
-            messagingAngles[0] ?? '',
-            `${competitorName} ${formatLabel}`
+            messagingAngles[0] ?? ''
           ) || `${competitorName} ${formatLabel}`
-        const copy =
-          firstMeaningful(rawCopy, cell(row, COL_SUBHEADLINE), messagingAngles[0] ?? '') || headline
-        const adId = cell(row, COL_AD_ID) || `${recordIndex}-${rowIndex}`
-        const status = cell(row, COL_STATUS).toLowerCase()
-        const startDate = cell(row, COL_START_DATE)
+        const copy = firstMeaningful(rawCopy, cell(row, COL_SUBHEADLINE))
         const cta = cell(row, COL_CTA)
-        const landingPage = cell(row, COL_LANDING_PAGE)
-        const media = collectMedia(row)
-        const imageUrl =
-          extractSimgadUrls(cell(row, COL_IMAGE))[0] ||
-          findUrlInRow(row, isSimgadUrl) ||
-          splitUrls(cell(row, COL_IMAGE)).find(isSimgadUrl) ||
-          ''
-        const adUrl = findUrlInRow(row, isStoredTransparencyUrl)
-        const valueProposition = firstMeaningful(cell(row, COL_OFFER), messagingAngles.slice(0, 3).join('; '))
-        const about = cell(row, COL_ABOUT)
-        const pricing = cell(row, COL_PRICING)
-        const audience = cell(row, COL_AUDIENCE)
-        const region = cell(row, COL_REGION)
-        const lastShown = cell(row, COL_END_DATE)
-
-        // Per-ad keyword data from the Get response (used by Creative Analysis)
-        const rowKeywords = splitIntelItems(cell(row, COL_KEYWORDS)).flatMap((item) =>
-          item.includes(',') ? item.split(',').map((part) => part.trim()) : [item]
-        ).filter((keyword) => keyword.length > 1 && keyword.length < 80)
+        const { images, videos } = collectMedia(row)
+        const landingRaw = cell(row, COL_LANDING_PAGE)
+        const adUrlCandidate = findUrlInRow(row, isStoredTransparencyUrl)
+        const keywords = splitIntelItems(cell(row, COL_KEYWORDS))
+        const offer = cell(row, COL_OFFER)
+        if (offer) themeCounts.set(offer, (themeCounts.get(offer) ?? 0) + 1)
+        const status = cell(row, COL_STATUS)
+        const active = isCreativeActive(status)
+        const startDate = cell(row, COL_START_DATE)
+        const endDate = cell(row, COL_END_DATE)
+        const dateValue = endDate || startDate
+        const parsedDate = dateValue ? new Date(dateValue) : null
+        const date =
+          parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : undefined
 
         ads.push({
-          id: `ad-${competitorId}-${adId}-${rowIndex}`,
+          id: `ad-${competitorId}-${recordIndex}-${rowIndex}`,
           competitorId,
           competitorName,
           headline,
           copy,
           platform: derivePlatform(cell(row, COL_PLATFORM)),
           format,
-          active: isCreativeActive(status),
-          date: startDate || undefined,
+          active,
+          date,
           cta: cta || undefined,
-          landingPage: landingPage || undefined,
-          keywords: rowKeywords.length > 0 ? rowKeywords : undefined,
+          landingPage: landingRaw || undefined,
+          keywords,
           isSelf,
           externalAdId: cell(row, COL_AD_ID) || undefined,
-          imageUrl: imageUrl || undefined,
-          adUrl: adUrl || undefined,
-          images: media.images.length > 0 ? media.images : undefined,
-          videos: media.videos.length > 0 ? media.videos : undefined,
-          region: region || undefined,
-          lastShown: lastShown || undefined,
-          language: 'English',
-          impressions: 'Not disclosed',
-          valueProposition: valueProposition || undefined,
-          services: services.length > 0 ? services : undefined,
-          pricing: pricing || undefined,
-          audience: audience || undefined,
-          about: about || undefined,
-          messagingAngles: messagingAngles.length > 0 ? messagingAngles : undefined,
+          imageUrl: images[0] || undefined,
+          adUrl: adUrlCandidate || undefined,
+          images,
+          videos,
+          region: cell(row, COL_REGION) || undefined,
+          lastShown: endDate || undefined,
+          valueProposition: cell(row, COL_VALUE_PROPS) || undefined,
+          services,
+          pricing: cell(row, COL_PRICING) || undefined,
+          audience: cell(row, COL_AUDIENCE) || undefined,
+          about: cell(row, COL_ABOUT) || undefined,
+          messagingAngles,
         })
-
-        rowKeywords.forEach((k) => keywordCounts.set(k, (keywordCounts.get(k) ?? 0) + 1))
-        cell(row, COL_VALUE_PROPS)
-          .split(';')
-          .map((t) => t.trim())
-          .filter(Boolean)
-          .forEach((t) => themeCounts.set(t, (themeCounts.get(t) ?? 0) + 1))
       })
     })
 
     if (ads.length === 0) {
       return {
         success: false,
-        error: 'No ads were found for the selected competitors yet. Please try again in a moment.',
+        error: 'No ads data was found yet for this analysis. Please try again in a moment.',
       }
     }
 
-    const buckets = new Map<string, { competitorId: string; name: string; ads: CompetitorAd[] }>()
-    ads.forEach((ad) => {
-      const existing = buckets.get(ad.competitorId)
-      if (existing) {
-        existing.ads.push(ad)
-        return
-      }
-      buckets.set(ad.competitorId, { competitorId: ad.competitorId, name: ad.competitorName, ads: [ad] })
+    // Keep the 6-month date restriction: dated creatives older than 6 months
+    // are excluded. Undated creatives are always kept. If the filter would
+    // remove everything, fall back to the full set so the dashboard never
+    // renders empty when the DB has rows.
+    const sixMonthsAgo = Date.now() - SIX_MONTHS_MS
+    const recentAds = ads.filter((ad) => {
+      if (!ad.date) return true
+      const time = new Date(ad.date).getTime()
+      return Number.isNaN(time) || time >= sixMonthsAgo
+    })
+    const finalAds = recentAds.length > 0 ? recentAds : ads
+
+    finalAds.forEach((ad) => {
+      ;(ad.keywords ?? []).forEach((keyword) => {
+        keywordCounts.set(keyword, (keywordCounts.get(keyword) ?? 0) + 1)
+      })
     })
 
-    const bucketList = Array.from(buckets.values())
-    const maxTotal = Math.max(1, ...bucketList.map((b) => b.ads.length))
+    const grouped = new Map<string, CompetitorAd[]>()
+    finalAds.forEach((ad) => {
+      const list = grouped.get(ad.competitorId) ?? []
+      list.push(ad)
+      grouped.set(ad.competitorId, list)
+    })
+    const maxAdsPerCompetitor = Math.max(1, ...Array.from(grouped.values()).map((list) => list.length))
 
-    const scorecards: CompetitorScorecard[] = bucketList.map((bucket) => {
-      const totalAds = bucket.ads.length
-      const activeAds = bucket.ads.filter((ad) => ad.active ?? true).length
-      let image = 0
-      let text = 0
-      let video = 0
-      bucket.ads.forEach((ad) => {
-        if (ad.format === 'video') video += 1
-        else if (ad.format === 'image') image += 1
-        else text += 1
-      })
-      const wordCounts = new Map<string, number>()
-      bucket.ads.forEach((ad) => {
-        ad.headline
-          .toLowerCase()
-          .split(/[^a-z0-9+]+/)
-          .forEach((word) => {
-            if (word.length < 4 || STOP_WORDS.has(word)) return
-            wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1)
+    const scorecards: CompetitorScorecard[] = Array.from(grouped.entries()).map(
+      ([competitorId, list]) => {
+        const first = list[0]
+        const imageCount = list.filter((ad) => ad.format === 'image').length
+        const textCount = list.filter((ad) => ad.format === 'text').length
+        const videoCount = list.filter((ad) => ad.format === 'video').length
+        const activeAds = list.filter((ad) => ad.active ?? true).length
+        const wordCounts = new Map<string, number>()
+        list.forEach((ad) => {
+          ad.headline
+            .toLowerCase()
+            .split(/[^a-z0-9+]+/)
+            .forEach((word) => {
+              if (word.length < 4 || STOP_WORDS.has(word)) return
+              wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1)
+            })
+        })
+        const headlineWords = Array.from(wordCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 4)
+          .map(([word]) => word)
+        return {
+          competitorId,
+          name: first ? first.competitorName : 'Unknown',
+          domain: domainById.get(competitorId) ?? '',
+          totalAds: list.length,
+          activeAds,
+          formatMix: normalizeMix(imageCount, textCount, videoCount),
+          marketIntensity: Math.min(
+            100,
+            Math.max(1, Math.round((list.length / maxAdsPerCompetitor) * 100))
+          ),
+          headlineWords,
+          status: activeAds > 0 ? ('LIVE' as const) : ('PAUSED' as const),
+          isSelf: first ? first.isSelf === true : false,
+        }
+      }
+    )
+
+    /* Heatmap with a dynamic date range: daily buckets for short spans, monthly otherwise. */
+    const dated = finalAds
+      .map((ad) => ({ ad, time: ad.date ? new Date(ad.date).getTime() : NaN }))
+      .filter((entry) => Number.isFinite(entry.time))
+    let heatmapLabels: string[] = MONTHS_SHORT
+    const heatmap: HeatmapRow[] = []
+    if (dated.length > 0) {
+      const minTime = Math.min(...dated.map((entry) => entry.time))
+      const maxTime = Math.max(...dated.map((entry) => entry.time))
+      const dayMs = 24 * 60 * 60 * 1000
+      const spanDays = Math.max(1, Math.ceil((maxTime - minTime) / dayMs) + 1)
+      if (spanDays <= 31) {
+        const bucketCount = spanDays
+        heatmapLabels = Array.from({ length: bucketCount }, (_, i) => {
+          const d = new Date(minTime + i * dayMs)
+          return `${MONTHS_SHORT[d.getUTCMonth()] ?? ''} ${d.getUTCDate()}`
+        })
+        scorecards.forEach((card) => {
+          const buckets = new Array<number>(bucketCount).fill(0)
+          dated.forEach((entry) => {
+            if (entry.ad.competitorId !== card.competitorId) return
+            const idx = Math.min(bucketCount - 1, Math.floor((entry.time - minTime) / dayMs))
+            buckets[idx] = (buckets[idx] ?? 0) + 1
           })
-      })
-      const headlineWords = Array.from(wordCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4)
-        .map(([word]) => word.charAt(0).toUpperCase() + word.slice(1))
-      return {
-        competitorId: bucket.competitorId,
-        name: bucket.name,
-        domain: domainById.get(bucket.competitorId) ?? '',
-        totalAds,
-        activeAds,
-        formatMix: normalizeMix(image, text, video),
-        marketIntensity: Math.min(100, Math.max(5, Math.round((totalAds / maxTotal) * 100))),
-        headlineWords,
-        status: activeAds > 0 ? 'LIVE' : 'PAUSED',
+          heatmap.push({ competitorName: card.name, monthly: buckets })
+        })
+      } else {
+        const buckets: Array<{ year: number; month: number }> = []
+        const start = new Date(minTime)
+        let year = start.getUTCFullYear()
+        let month = start.getUTCMonth()
+        const end = new Date(maxTime)
+        const endKey = end.getUTCFullYear() * 12 + end.getUTCMonth()
+        while (year * 12 + month <= endKey && buckets.length < 12) {
+          buckets.push({ year, month })
+          month += 1
+          if (month > 11) {
+            month = 0
+            year += 1
+          }
+        }
+        heatmapLabels = buckets.map((bucket) => MONTHS_SHORT[bucket.month] ?? '')
+        scorecards.forEach((card) => {
+          const counts = new Array<number>(buckets.length).fill(0)
+          dated.forEach((entry) => {
+            if (entry.ad.competitorId !== card.competitorId) return
+            const d = new Date(entry.time)
+            const idx = buckets.findIndex(
+              (bucket) => bucket.year === d.getUTCFullYear() && bucket.month === d.getUTCMonth()
+            )
+            if (idx >= 0) counts[idx] = (counts[idx] ?? 0) + 1
+          })
+          heatmap.push({ competitorName: card.name, monthly: counts })
+        })
       }
-    })
-
-    const orderSet = new Set<number>()
-    ads.forEach((ad) => {
-      if (!ad.date) return
-      const d = new Date(ad.date)
-      if (Number.isNaN(d.getTime())) return
-      orderSet.add(d.getFullYear() * 12 + d.getMonth())
-    })
-    const orders = Array.from(orderSet)
-      .sort((a, b) => a - b)
-      .slice(-8)
-
-    let heatmap: HeatmapRow[]
-    let heatmapLabels: string[] | undefined
-    if (orders.length > 0) {
-      heatmapLabels = orders.map((order) => MONTHS_SHORT[order % 12] ?? '')
-      heatmap = bucketList.map((bucket) => {
-        const monthly = orders.map(
-          (order) =>
-            bucket.ads.filter((ad) => {
-              if (!ad.date) return false
-              const d = new Date(ad.date)
-              if (Number.isNaN(d.getTime())) return false
-              return d.getFullYear() * 12 + d.getMonth() === order
-            }).length
-        )
-        return { competitorName: bucket.name, monthly }
-      })
     } else {
-      heatmap = bucketList.map((bucket) => ({
-        competitorName: bucket.name,
-        monthly: new Array<number>(12).fill(0),
-      }))
+      scorecards.forEach((card) => {
+        heatmap.push({ competitorName: card.name, monthly: new Array<number>(12).fill(0) })
+      })
     }
 
     const keywords = Array.from(keywordCounts.entries())
@@ -521,67 +541,71 @@ export async function fetchDashboardData(
       .slice(0, 12)
       .map(([keyword]) => keyword)
 
-    const ctaMap = new Map<string, number>()
-    ads.forEach((ad) => {
-      if (ad.cta) ctaMap.set(ad.cta, (ctaMap.get(ad.cta) ?? 0) + 1)
+    const ctaCounts = new Map<string, number>()
+    finalAds.forEach((ad) => {
+      const cta = ad.cta?.trim()
+      if (cta) ctaCounts.set(cta, (ctaCounts.get(cta) ?? 0) + 1)
     })
-    const ctas: CtaUsage[] = Array.from(ctaMap.entries())
+    const ctas: CtaUsage[] = Array.from(ctaCounts.entries())
       .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 6)
 
+    if (themeCounts.size === 0) {
+      finalAds.forEach((ad) => {
+        ;(ad.messagingAngles ?? []).slice(0, 1).forEach((angle) => {
+          themeCounts.set(angle, (themeCounts.get(angle) ?? 0) + 1)
+        })
+      })
+    }
     const themes: MessagingTheme[] = Array.from(themeCounts.entries())
       .map(([theme, frequency]) => ({ theme, frequency }))
       .sort((a, b) => b.frequency - a.frequency)
       .slice(0, 6)
 
-    const totalAds = ads.length
-    const activeCount = ads.filter((ad) => ad.active ?? true).length
-    const imageCreatives = ads.filter((ad) => ad.format === 'image').length
-    const videoCreatives = ads.filter((ad) => ad.format === 'video').length
-
     const signals: StrategicSignal[] = []
-    const sortedBuckets = [...bucketList].sort((a, b) => b.ads.length - a.ads.length)
-    const topBucket = sortedBuckets[0]
-    if (topBucket) {
+    const leader = [...scorecards]
+      .filter((card) => !card.isSelf)
+      .sort((a, b) => b.totalAds - a.totalAds)[0]
+    if (leader) {
       signals.push({
         type: 'Trend',
-        title: `${topBucket.name} leads ad volume`,
-        description: `${topBucket.name} is running ${topBucket.ads.length} tracked ads — the largest footprint in this competitive set.`,
+        title: `${leader.name} leads ad volume`,
+        description: `${leader.name} is running ${leader.totalAds} tracked ads (${leader.activeAds} active) — the largest footprint in this competitive set.`,
       })
     }
-    if (videoCreatives / Math.max(1, totalAds) < 0.2) {
-      signals.push({
-        type: 'Opportunity',
-        title: 'Video creatives are underused',
-        description: `Only ${videoCreatives} of ${totalAds} tracked ads are video — investing in video could differentiate your creative mix.`,
-      })
-    }
-    const topCtaUsage = ctas[0]
-    if (topCtaUsage) {
+    const videoHeavy = scorecards.find((card) => card.formatMix.video >= 40)
+    if (videoHeavy) {
       signals.push({
         type: 'Watch',
-        title: `"${topCtaUsage.label}" dominates CTAs`,
-        description: `The most common call-to-action across the tracked set is "${topCtaUsage.label}" (${topCtaUsage.count} ads).`,
+        title: `${videoHeavy.name} is investing in video`,
+        description: `${videoHeavy.formatMix.video}% of ${videoHeavy.name}'s creatives are video — monitor their video messaging closely.`,
       })
     }
-    const pausedCompetitor = scorecards.find((s) => s.status === 'PAUSED')
-    if (pausedCompetitor) {
+    if (keywords.length > 0) {
+      signals.push({
+        type: 'Opportunity',
+        title: `Contested keyword: "${keywords[0]}"`,
+        description: `"${keywords[0]}" appears most often across the tracked creatives — a strong candidate for counter-positioning in your own ads.`,
+      })
+    }
+    const paused = scorecards.find((card) => card.status === 'PAUSED' && !card.isSelf)
+    if (paused) {
       signals.push({
         type: 'Alert',
-        title: `${pausedCompetitor.name} has paused its ads`,
-        description: `${pausedCompetitor.name} currently has no live ads among its ${pausedCompetitor.totalAds} tracked creatives.`,
+        title: `${paused.name} has paused all ads`,
+        description: `None of ${paused.name}'s ${paused.totalAds} tracked ads are currently active — watch for a relaunch or strategy shift.`,
       })
     }
 
+    const activeCount = finalAds.filter((ad) => ad.active ?? true).length
     const dashboard: AdsDashboardData = {
       kpis: {
-        totalAds,
-        activePct: totalAds > 0 ? Math.round((activeCount / totalAds) * 100) : 0,
-        imageCreatives,
-        videoCreatives,
-        // Selected rivals only — never include the entered company (competitor_name = self).
-        competitorCount: selectedCompetitors.length,
+        totalAds: finalAds.length,
+        activePct: finalAds.length > 0 ? Math.round((activeCount / finalAds.length) * 100) : 0,
+        imageCreatives: finalAds.filter((ad) => ad.format === 'image').length,
+        videoCreatives: finalAds.filter((ad) => ad.format === 'video').length,
+        competitorCount: scorecards.filter((card) => !card.isSelf).length,
       },
       scorecards,
       heatmap,
@@ -590,7 +614,7 @@ export async function fetchDashboardData(
       ctas,
       themes,
       signals,
-      ads,
+      ads: finalAds,
     }
     return { success: true, dashboard }
   } catch {

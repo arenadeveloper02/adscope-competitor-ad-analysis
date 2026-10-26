@@ -1,29 +1,26 @@
 # Repository Summary: adscope-competitor-ad-analysis
 
-> Auto-maintained by Sim Development. Last updated: 2026-08-28T06:47:15.058Z.
+> Auto-maintained by Sim Development. Last updated: 2026-10-26T06:54:05.361Z.
 
 ## Overview
 
-Implemented the new API 1 trigger payload ({ companyName, email, competitorDetails: [...] }), 20-second API 2 polling that renders partial data while API 1 runs, a final API 2 fetch once API 1 returns { success: true, output: { result: { status: 'success' } } }, the polished 8-12 minute long-run loading message, a refresh loading spinner while the saved analysis is restored, renamed the 'Competitor Intel' tab to 'Competitors', and added per-competitor keyword drill-down columns with clickable keywords and 'View all [X] ads' buttons in Creative Analysis that filter the Ad Gallery. Files changed: components/DashboardClient.tsx (TABS label rename; handleGetAdsForSelected rewritten for trigger+poll flow; isRestoring refresh spinner; long-run message), components/CreativeAnalysis.tsx (added competitor ad counts and 'View all X ads' buttons in the keyword drill-down grid; completed clickable keyword/messaging/opener/headline interactivity), components/AddCompetitorModal.tsx (modal kept with DS overlay/centering CSS intact), prisma/schema.prisma (echoed verbatim — no schema changes).
+Competitor ad analysis dashboard: discover competitors for a domain, trigger the ads-intelligence workflow (API 1), poll the DB-backed Get workflow (API 2) every 20s while it runs, and explore results across Market Insights, Ad Gallery, Competitors, and Creative Analysis tabs.
 
 **Repository:** `adscope-competitor-ad-analysis`  
-**File count:** 40
+**File count:** 41
 
 ## Features
 
-- Competitor discovery by domain
-- Two-step ads analysis: trigger workflow + 20s polling of the Get workflow
-- Partial dashboard rendering while the long-running analysis executes
-- Final dashboard refresh when the trigger workflow reports success
-- Long-run loading message (8-12 minutes) kept visible until completion
-- Refresh loading spinner while restoring the saved analysis
-- Ad Gallery with search and format filters
-- Competitors tab with deep competitor intelligence
-- Creative Analysis with per-competitor keyword drill-down and View all ads buttons
+- Domain-based competitor discovery
+- API 1 trigger with exact competitorDetails payload + 20s API 2 polling + final API 2 fetch
+- Long-run (8-12 min) status message while the analysis executes
+- Refresh loading spinner while the saved DB snapshot restores
+- Competitors tab, Creative Analysis keyword drill-down with per-competitor columns and View all ads buttons
+- Server-side snapshot persistence keyed by Arena emailId
 
 ## Tech Stack
 
-- Next.js ^15.3.3 (App Router)
+- Next.js 16.2.12 (App Router)
 - React 19.0.0
 - Tailwind CSS v3
 - TypeScript
@@ -73,7 +70,6 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 - `app/access-denied/page.tsx`
 - `app/arena-ds-tokens.css`
-- `app/error.tsx`
 - `app/globals.css`
 - `app/layout.tsx`
 - `app/not-found.tsx`
@@ -82,6 +78,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 ### Components
 
 - `components/AdCard.tsx`
+- `components/AdDetailModal.tsx`
 - `components/AdGallery.tsx`
 - `components/AddCompetitorModal.tsx`
 - `components/AdsDashboard.tsx`
@@ -97,6 +94,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 ### Libraries
 
 - `lib/actions.ts`
+- `lib/ad-display.ts`
 - `lib/arena-email-constants.ts`
 - `lib/arena-email.ts`
 - `lib/dashboard-actions.ts`
@@ -131,12 +129,12 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `REPO_SUMMARY.md`
 - `app/access-denied/page.tsx`
 - `app/arena-ds-tokens.css`
-- `app/error.tsx`
 - `app/globals.css`
 - `app/layout.tsx`
 - `app/not-found.tsx`
 - `app/page.tsx`
 - `components/AdCard.tsx`
+- `components/AdDetailModal.tsx`
 - `components/AdGallery.tsx`
 - `components/AddCompetitorModal.tsx`
 - `components/AdsDashboard.tsx`
@@ -149,6 +147,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 - `components/TopNav.tsx`
 - `components/arena-email-provider.tsx`
 - `lib/actions.ts`
+- `lib/ad-display.ts`
 - `lib/arena-email-constants.ts`
 - `lib/arena-email.ts`
 - `lib/dashboard-actions.ts`
@@ -169,7 +168,7 @@ This section is binding on every edit. Vercel deploy runs `prisma db push` with 
 
 ## Latest Change
 
-- **Updated at:** 2026-08-28T06:47:15.058Z
+- **Updated at:** 2026-10-26T06:54:05.361Z
 - **Request:** Implement the following functionality in the codebase. CRITICAL INSTRUCTION: Do NOT revert, remove, or modify previous fixes. The modal CSS fixes, the sticky header, the 6-month date restriction, and the existing UI layouts must remain exactly as they are. Only apply the following specific changes:
 
 Changes to implement:

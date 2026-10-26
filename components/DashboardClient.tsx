@@ -113,7 +113,7 @@ export default function DashboardClient() {
   // Restore persisted session state on mount so refreshes do not wipe the analysis.
   // Phase 1: instant paint from the server-side snapshot (per emailId).
   // Phase 2: background refresh of the MOST RECENT run from the Get workflow.
-  // A loading spinner (isRestoring) is shown until the existing DB data loads.
+  // A loading spinner (isRestoring) is shown until the existing database data loads.
   useEffect(() => {
     let cancelled = false
     const restore = async () => {
@@ -311,104 +311,106 @@ export default function DashboardClient() {
     setIsPickingMore(false)
 
     const startedAt = Date.now()
-    const flags = { rendered: false, finalizing: false }
+    const flags = { rendered: false, finished: false }
 
-    const clearPolling = () => {
+    const stopPolling = () => {
       if (pollIntervalRef.current !== null) {
         clearInterval(pollIntervalRef.current)
         pollIntervalRef.current = null
       }
     }
 
-    const pollOnce = async (): Promise<void> => {
-      if (syncRunIdRef.current !== runId) {
-        return
+    const applyDashboard = (fresh: AdsDashboardData) => {
+      if (!flags.rendered) {
+        flags.rendered = true
+        populateDashboardFromGet(fresh)
+      } else {
+        setDashboard(fresh)
+        setAds(fresh.ads)
       }
-      if (Date.now() - startedAt > MAX_RUN_MS) {
-        clearPolling()
-        setIsFetchingAds(false)
-        if (!flags.rendered) {
-          setAdsError(
-            'The analysis is taking longer than expected. Please refresh the page in a few minutes to view your results.'
-          )
-        }
-        return
-      }
+    }
+
+    // Fires API 2 ({ email, company_name }) and renders whatever data is
+    // currently available in the database for this run.
+    const renderAvailableData = async (isFinal: boolean) => {
+      if (syncRunIdRef.current !== runId) return
       try {
-        const result = await fetchDashboardData(userEmail, companyDomain, selectedCompetitors)
-        if (syncRunIdRef.current !== runId || flags.finalizing) return
-        if (result.success && result.dashboard) {
-          flags.rendered = true
-          // Render the currently available data while API 1 keeps running.
-          setDashboard(result.dashboard)
-          setAds(result.dashboard.ads)
-          setInactiveCompetitorIds([])
-          setHasFetchedAds(true)
+        const fresh = await fetchDashboardData(userEmail, companyDomain, selectedCompetitors)
+        if (syncRunIdRef.current !== runId) return
+        if (!isFinal && flags.finished) return
+        if (fresh.success && fresh.dashboard) {
+          applyDashboard(fresh.dashboard)
+        } else if (isFinal && !flags.rendered) {
+          setAdsError(fresh.error ?? 'No ads data was found for this analysis. Please try again.')
         }
       } catch {
-        // transient polling failure — try again on the next 20s tick
+        if (isFinal && !flags.rendered && syncRunIdRef.current === runId) {
+          setAdsError('Something went wrong while loading the ads data. Please try again.')
+        }
       }
     }
 
-    const triggerPayload = {
-      companyName: companyDomain,
-      email: userEmail,
-      competitorDetails: selectedCompetitors.map((comp) => ({
-        company_domain_url: companyDomain,
-        company_name: companyDomain,
-        competitor_description: comp.description || '',
-        competitor_domain_url: comp.domain,
-        name: comp.name,
-      })),
-    }
-
-    // STEP 1: fire API 1, then immediately begin the 20-second API 2 polling
-    // while API 1 continues executing.
-    const triggerRequest = fetch(ADS_TRIGGER_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'X-API-Key': ADS_TRIGGER_API_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(triggerPayload),
-      cache: 'no-store',
-    })
-    clearPolling()
+    // STEP 2 — immediately start polling API 2 every 20 seconds while API 1 runs.
+    stopPolling()
     pollIntervalRef.current = setInterval(() => {
-      void pollOnce()
+      if (
+        flags.finished ||
+        syncRunIdRef.current !== runId ||
+        Date.now() - startedAt > MAX_RUN_MS
+      ) {
+        stopPolling()
+        return
+      }
+      void renderAvailableData(false)
     }, POLL_INTERVAL_MS)
 
-    // STEP 3: await API 1 and only then perform the final API 2 fetch.
-    let triggerSucceeded = false
     try {
-      const response = await triggerRequest
-      if (response.ok) {
-        const payload: unknown = await response.json()
-        triggerSucceeded = isTriggerSuccess(payload)
-      }
-    } catch {
-      // API 1 may time out at the browser/gateway while continuing server-side.
-      // Keep the interval alive so available database data can still render.
-    }
-    if (syncRunIdRef.current !== runId) {
-      return
-    }
-    if (!triggerSucceeded) return
+      // STEP 1 — fire API 1 (Final trigger workflow) with the exact payload shape.
+      const triggerResponse = await fetch(ADS_TRIGGER_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': ADS_TRIGGER_API_KEY,
+        },
+        body: JSON.stringify({
+          companyName: companyDomain,
+          email: userEmail,
+          competitorDetails: selectedCompetitors.map((comp) => ({
+            company_domain_url: companyDomain,
+            company_name: companyDomain,
+            competitor_description: comp.description || '',
+            competitor_domain_url: comp.domain,
+            name: comp.name,
+          })),
+        }),
+      })
 
-    // Final API 2 trigger: stop polling and fetch the completed dataset.
-    flags.finalizing = true
-    clearPolling()
-    try {
-      const final = await fetchDashboardData(userEmail, companyDomain, selectedCompetitors)
+      // STEP 3 — API 1 responded: clear the 20s interval and fire API 2 one
+      // final time to load the fully completed dataset.
+      let triggerSucceeded = false
+      if (triggerResponse.ok) {
+        try {
+          const payload: unknown = await triggerResponse.json()
+          triggerSucceeded = isTriggerSuccess(payload)
+        } catch {
+          triggerSucceeded = false
+        }
+      }
+      flags.finished = true
+      stopPolling()
       if (syncRunIdRef.current !== runId) return
-      if (final.success && final.dashboard) {
-        populateDashboardFromGet(final.dashboard)
-      } else {
-        setAdsError(final.error ?? 'No ads data was returned for this analysis. Please try again.')
+      await renderAvailableData(true)
+      if (!flags.rendered && !triggerSucceeded && syncRunIdRef.current === runId) {
+        setAdsError((prev) => prev || 'The ads analysis could not be completed. Please try again.')
       }
     } catch {
-      if (syncRunIdRef.current === runId) {
-        setAdsError('Something went wrong while fetching the completed ads data. Please try again.')
+      flags.finished = true
+      stopPolling()
+      if (syncRunIdRef.current !== runId) return
+      // Even when API 1 is unreachable, try to render whatever the DB has.
+      await renderAvailableData(true)
+      if (!flags.rendered && syncRunIdRef.current === runId) {
+        setAdsError((prev) => prev || 'Unable to reach the ads analysis service. Please try again.')
       }
     } finally {
       if (syncRunIdRef.current === runId) setIsFetchingAds(false)
@@ -422,205 +424,226 @@ export default function DashboardClient() {
     setIsPickingMore(true)
   }
 
-  const handleOpenAddCompetitor = () => {
-    setIsModalOpen(true)
-    setIsPickingMore(true)
-    domainSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
+  // Filters the Ad Gallery tab to a specific format/keyword and switches to it.
   const handleFilterGallery = (format: 'all' | AdFormat, query: string) => {
     setGalleryFormat(format)
     setGallerySearch(query)
     setActiveTab('gallery')
   }
 
+  // Focuses a competitor inside the Competitors tab and switches to it.
   const handleOpenCompetitors = (competitorName: string) => {
-    setCompetitorFocus((current) => ({ name: competitorName, nonce: current.nonce + 1 }))
+    setCompetitorFocus({ name: competitorName, nonce: Date.now() })
     setActiveTab('competitors')
   }
 
-  const handleFindInGallery = (query: string) => {
-    handleFilterGallery('all', query)
+  // TopNav checkbox toggles temporary exclusion from the dashboard view.
+  const handleNavToggleCompetitor = (id: string) => {
+    setInactiveCompetitorIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }
 
-  // Derived dashboard view — filters out temporarily inactive competitors
-  // WITHOUT mutating the fetched dashboard data.
-  const viewDashboard: AdsDashboardData | null = (() => {
-    if (!dashboard) return null
-    if (inactiveCompetitorIds.length === 0) return dashboard
-    const inactive = new Set(inactiveCompetitorIds)
-    const scorecards = dashboard.scorecards.filter((s) => !inactive.has(s.competitorId))
-    const names = new Set(scorecards.map((s) => s.name))
-    return {
-      ...dashboard,
-      scorecards,
-      heatmap: dashboard.heatmap.filter((row) => names.has(row.competitorName)),
-      ads: dashboard.ads.filter((ad) => !inactive.has(ad.competitorId)),
-    }
-  })()
-
-  const showCompetitorTable =
-    hasSearched && !isFetchingCompetitors && competitors.length > 0 && (!hasFetchedAds || isPickingMore)
+  const visibleAds = ads.filter((ad) => !inactiveCompetitorIds.includes(ad.competitorId))
+  const visibleDashboard: AdsDashboardData | null = dashboard
+    ? {
+        ...dashboard,
+        scorecards: dashboard.scorecards.filter(
+          (card) => !inactiveCompetitorIds.includes(card.competitorId)
+        ),
+        heatmap: dashboard.heatmap.filter(
+          (row) =>
+            !dashboard.scorecards.some(
+              (card) =>
+                card.name === row.competitorName &&
+                inactiveCompetitorIds.includes(card.competitorId)
+            )
+        ),
+        ads: dashboard.ads.filter((ad) => !inactiveCompetitorIds.includes(ad.competitorId)),
+      }
+    : null
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-grey-50">
       <TopNav
         competitors={competitors}
-        selectedIds={selectedIds}
+        selectedIds={selectedIds.filter((id) => !inactiveCompetitorIds.includes(id))}
         hasFetchedAds={hasFetchedAds}
-        onToggleCompetitor={handleToggle}
-        onAddCompetitor={handleOpenAddCompetitor}
+        onToggleCompetitor={handleNavToggleCompetitor}
+        onAddCompetitor={() => setIsModalOpen(true)}
       />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-        {/* Domain search */}
-        <section ref={domainSectionRef} className="ds-card mt-6 p-6">
-          <div className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-brand" />
-            <h1 className="text-lg font-semibold text-grey-900">Analyze a domain</h1>
-          </div>
-          <p className="mt-1 text-sm text-grey-600">
-            Enter your company domain to discover competitors and analyze their ads across platforms.
-          </p>
-          <form onSubmit={handleListCompetitors} className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-400" />
-              <input
-                type="text"
-                value={domain}
-                onChange={(e) => {
-                  setDomain(e.target.value)
-                  if (domainError) setDomainError('')
-                }}
-                placeholder="e.g. yourcompany.com"
-                className="h-11 w-full rounded-xl border border-grey-200 pl-9 pr-3 text-sm text-grey-900 placeholder:text-grey-400 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/30"
-                aria-label="Company domain"
-              />
-            </div>
-            <button
-              type="submit"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 text-sm font-medium text-white transition duration-200 hover:bg-brand-700 active:bg-brand-800 focus:outline-none focus:ring-4 focus:ring-brand-600/30 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!domain.trim() || isFetchingCompetitors}
-            >
-              <Search className="h-4 w-4" />
-              {isFetchingCompetitors ? 'Analyzing…' : 'List Competitors'}
-            </button>
-          </form>
-          {domainError && (
-            <p className="mt-2 text-xs" style={{ color: '#F31A1A' }}>
-              {domainError}
-            </p>
-          )}
-          {apiError && (
-            <p className="mt-2 text-xs" style={{ color: '#F31A1A' }}>
-              {apiError}
-            </p>
-          )}
-        </section>
-
-        {/* Refresh loading state — shown until the saved analysis is restored */}
-        {isRestoring && !isFetchingCompetitors && (
+        {isRestoring ? (
+          // Refresh loading state — shown until the existing database data loads.
           <Spinner label="Loading your saved analysis…" />
-        )}
-
-        {isFetchingCompetitors && <Spinner label="Finding competitors for this domain…" />}
-
-        {showCompetitorTable && (
-          <section className="ds-card mt-6 overflow-hidden">
-            <div className="flex flex-col gap-3 border-b border-grey-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-grey-600" />
-                <h2 className="text-base font-semibold text-grey-900">
-                  Competitors found ({competitors.length})
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="ds-btn-secondary !border-transparent !bg-brand-600 !text-white hover:!bg-brand-700 active:!bg-brand-800"
-                onClick={() => setIsModalOpen(true)}
-              >
-                + Add Competitor
-              </button>
-            </div>
-            <CompetitorsTable
-              competitors={competitors}
-              selectedIds={selectedIds}
-              onToggle={handleToggle}
-              onToggleAll={handleToggleAll}
-            />
-            <div className="flex flex-col gap-3 border-t border-grey-100 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-grey-500">{selectedIds.length} selected</p>
-              <button
-                type="button"
-                className="ds-btn-primary !bg-brand-600 !text-white hover:!bg-brand-700 active:!bg-brand-800"
-                onClick={() => void handleGetAdsForSelected()}
-                disabled={selectedIds.length === 0 || isFetchingAds}
-              >
-                Get Ads for Selected ({selectedIds.length})
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Long-run loading message — visible until the final API 2 call completes */}
-        {isFetchingAds && <Spinner label={LONG_RUN_MESSAGE} />}
-
-        {adsError && !isFetchingAds && (
-          <div className="ds-card mt-6 p-6 text-center">
-            <p className="text-sm font-medium" style={{ color: '#F31A1A' }}>
-              {adsError}
-            </p>
-          </div>
-        )}
-
-        {hasFetchedAds && viewDashboard && (
+        ) : (
           <>
-            <div className="mt-8 flex flex-wrap gap-2 border-b border-grey-200">
-              {TABS.map((tab) => (
+            {/* Domain search */}
+            <section ref={domainSectionRef} className="ds-card mt-6 p-6">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-brand" />
+                <h1 className="text-lg font-semibold text-grey-900">Analyze a Domain</h1>
+              </div>
+              <p className="mt-1 text-sm text-grey-600">
+                Enter a company domain to discover competitors and analyze their ads across platforms.
+              </p>
+              <form onSubmit={handleListCompetitors} className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
+                  <input
+                    type="text"
+                    value={domain}
+                    onChange={(e) => {
+                      setDomain(e.target.value)
+                      if (domainError) setDomainError('')
+                    }}
+                    placeholder="e.g. example.com"
+                    className="h-11 w-full rounded-xl border border-grey-300 bg-white pl-11 pr-3 text-sm text-grey-900 placeholder:text-grey-400 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand-600/20"
+                    aria-label="Company domain"
+                  />
+                </div>
                 <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-brand text-brand'
-                      : 'border-transparent text-grey-600 hover:text-grey-900'
-                  }`}
+                  type="submit"
+                  disabled={isFetchingCompetitors}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 active:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {tab.label}
+                  {isFetchingCompetitors ? 'Searching…' : 'List Competitors'}
                 </button>
-              ))}
-            </div>
+              </form>
+              {domainError && (
+                <p className="mt-2 text-xs" style={{ color: '#F31A1A' }}>
+                  {domainError}
+                </p>
+              )}
+            </section>
 
-            {activeTab === 'insights' && <AdsDashboard data={viewDashboard} />}
-            {activeTab === 'gallery' && (
-              <AdGallery
-                ads={viewDashboard.ads}
-                search={gallerySearch}
-                format={galleryFormat}
-                onSearchChange={setGallerySearch}
-                onFormatChange={setGalleryFormat}
-                competitorCount={viewDashboard.kpis.competitorCount}
-                onAdClick={setSelectedAd}
-              />
+            {apiError && (
+              <div
+                className="mt-4 rounded-xl border px-4 py-3 text-sm"
+                style={{ backgroundColor: '#FFF3F3', borderColor: '#FAA3A3', color: '#921010' }}
+                role="alert"
+              >
+                {apiError}
+              </div>
             )}
-            {activeTab === 'competitors' && (
-              <CompetitorIntel
-                data={viewDashboard}
-                ads={viewDashboard.ads}
-                competitors={competitors}
-                onFindInGallery={handleFindInGallery}
-                onAdClick={setSelectedAd}
-                focusCompetitorName={competitorFocus.name}
-                focusNonce={competitorFocus.nonce}
-              />
+
+            {isFetchingCompetitors && <Spinner label="Finding competitors…" />}
+
+            {/* Competitor selection table + Get Ads trigger */}
+            {hasSearched &&
+              !isFetchingCompetitors &&
+              competitors.length > 0 &&
+              (!hasFetchedAds || isPickingMore) && (
+                <section className="ds-card mt-6 overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-grey-100 px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-grey-600" />
+                      <h2 className="text-base font-semibold text-grey-900">
+                        Competitors Found ({competitors.length})
+                      </h2>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleGetAdsForSelected()}
+                      disabled={selectedIds.length === 0 || isFetchingAds}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700 active:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isFetchingAds
+                        ? 'Analyzing…'
+                        : `Get Ads for Selected (${selectedIds.length})`}
+                    </button>
+                  </div>
+                  <CompetitorsTable
+                    competitors={competitors}
+                    selectedIds={selectedIds}
+                    onToggle={handleToggle}
+                    onToggleAll={handleToggleAll}
+                  />
+                </section>
+              )}
+
+            {/* Long-run message — visible from API 1 start until the final API 2 call completes */}
+            {isFetchingAds && (
+              <div className="ds-card mt-6 flex items-start gap-3 p-5" style={{ backgroundColor: '#F3F8FE', border: '1px solid #A3C7F6' }}>
+                <div
+                  className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-grey-200"
+                  style={{ borderTopColor: '#1A73E8' }}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-grey-900">Ads analysis in progress</p>
+                  <p className="mt-1 text-sm text-grey-700">{LONG_RUN_MESSAGE}</p>
+                </div>
+              </div>
             )}
-            {activeTab === 'creative' && (
-              <CreativeAnalysis
-                ads={viewDashboard.ads}
-                onFilterGallery={handleFilterGallery}
-                onOpenCompetitors={handleOpenCompetitors}
-              />
+
+            {adsError && !isFetchingAds && (
+              <div
+                className="mt-4 rounded-xl border px-4 py-3 text-sm"
+                style={{ backgroundColor: '#FFF3F3', borderColor: '#FAA3A3', color: '#921010' }}
+                role="alert"
+              >
+                {adsError}
+              </div>
+            )}
+
+            {/* Dashboard tabs */}
+            {hasFetchedAds && visibleDashboard && (
+              <>
+                <nav className="sticky top-16 z-30 mt-6 border-b border-grey-200 bg-grey-50/95 backdrop-blur">
+                  <div className="flex gap-1 overflow-x-auto">
+                    {TABS.map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                          activeTab === tab.id
+                            ? 'border-brand text-brand'
+                            : 'border-transparent text-grey-600 hover:text-grey-900'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </nav>
+
+                {activeTab === 'insights' && <AdsDashboard data={visibleDashboard} />}
+
+                {activeTab === 'gallery' && (
+                  <AdGallery
+                    ads={visibleAds}
+                    search={gallerySearch}
+                    format={galleryFormat}
+                    onSearchChange={setGallerySearch}
+                    onFormatChange={setGalleryFormat}
+                    competitorCount={visibleDashboard.kpis.competitorCount}
+                    onAdClick={(ad) => setSelectedAd(ad)}
+                  />
+                )}
+
+                {activeTab === 'competitors' && (
+                  <CompetitorIntel
+                    data={visibleDashboard}
+                    ads={visibleAds}
+                    competitors={competitors}
+                    onFindInGallery={(query) => handleFilterGallery('all', query)}
+                    onAdClick={(ad) => setSelectedAd(ad)}
+                    focusCompetitorName={competitorFocus.name}
+                    focusNonce={competitorFocus.nonce}
+                  />
+                )}
+
+                {activeTab === 'creative' && (
+                  <CreativeAnalysis
+                    ads={visibleAds}
+                    onFilterGallery={handleFilterGallery}
+                    onOpenCompetitors={handleOpenCompetitors}
+                  />
+                )}
+              </>
             )}
           </>
         )}
